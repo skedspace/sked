@@ -1,0 +1,64 @@
+# === Environment ===
+.env
+.env.local
+.env.production
+.env.*.local
+
+# === Dependencies ===
+node_modules/
+node_modules_broken_*/
+.pnp
+.pnp.js
+
+# === Build ===
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === OS ===
+.DS_Store
+Thumbs.db
+*.log
+
+# === Supabase ===
+supabase/.temp/
+supabase/.branches/
+
+# === Testing ===
+coverage/
+playwright-report/
+test-results/
+
+# === Misc ===
+*.pem
+
+# === Local dev tools ===
+_*.bat
+_*.cmd
+_*.js
+_*.mjs
+_*.ts
+_*.cjs
+
+# === Local config ===
+.claude/
+.kun-design/
+
+# === Junk files from mistyped shell commands ===
+{*
+
+# === Dev logs ===
+.next-dev-*.log
+.next-dev-*.err.log
+.next-dev-*.out.log
+.next-stale-*/
