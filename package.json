@@ -10,7 +10,7 @@
     "lint:fix": "eslint --ext .js,.jsx,.ts,.tsx . --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,css,md}\"",
     "typecheck": "tsc --noEmit",
-    "test": "vitest",
+    "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:e2e": "playwright test",
     "test:rls": "vitest run --config vitest.rls.config.ts",
@@ -72,7 +72,7 @@
   },
   "engines": {
     "node": ">=18.18",
-    "pnpm": ">=9.0"
+    "pnpm": ">=11.9.0"
   },
-  "packageManager": "pnpm@9.15.4"
+  "packageManager": "pnpm@11.9.0"
 }

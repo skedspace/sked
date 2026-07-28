@@ -7,6 +7,7 @@
 # === Dependencies ===
 node_modules/
 node_modules_broken_*/
+node_modules-stale-codex-*/
 .pnp
 .pnp.js
 
