@@ -244,21 +244,16 @@ function OpenCourtCard({
     <article
       className={cn(
         "relative flex flex-col overflow-hidden rounded-2xl bg-[#151713] px-5 pb-5 pt-3.5",
-        isReady
-          ? "border border-[#3fd8c2]/40"
-          : "border border-white/10",
       )}
     >
-      {isReady && (
-        <BorderBeam
-          size={90}
-          duration={12}
-          delay={2}
-          colorFrom="#3fd8c2"
-          colorTo="transparent"
-          borderWidth={1}
-        />
-      )}
+      <BorderBeam
+        size={90}
+        duration={12}
+        delay={isReady ? 2 : 6}
+        colorFrom={isReady ? "#3fd8c2" : "#ffffff"}
+        colorTo="transparent"
+        borderWidth={1}
+      />
       <DotGridCorner />
 
       {/* Header */}
@@ -384,7 +379,14 @@ export function ActiveCourts({
       )}
 
       {courts.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-[#151713] py-16">
+        <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl bg-[#151713] py-16">
+          <BorderBeam
+            size={100}
+            duration={12}
+            colorFrom="#b9f34b"
+            colorTo="#5b8def"
+            borderWidth={1}
+          />
           <p className="text-sm text-white/20">No courts active</p>
         </div>
       ) : (

@@ -243,9 +243,11 @@ export function TournamentInfoPanel({
             icon={CalendarDays}
             label="Dates"
             value={
-              tournament.startDate === tournament.endDate
-                ? format(new Date(`${tournament.startDate}T12:00:00`), "MMM d")
-                : `${format(new Date(`${tournament.startDate}T12:00:00`), "MMM d")}–${format(new Date(`${tournament.endDate}T12:00:00`), "d")}`
+              !tournament.startDate || !tournament.endDate
+                ? "—"
+                : tournament.startDate === tournament.endDate
+                  ? format(new Date(`${tournament.startDate}T12:00:00`), "MMM d")
+                  : `${format(new Date(`${tournament.startDate}T12:00:00`), "MMM d")}–${format(new Date(`${tournament.endDate}T12:00:00`), "d")}`
             }
           />
           <StatTile icon={Swords} label="Entry" value={tournament.entryFee} />

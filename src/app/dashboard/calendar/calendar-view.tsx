@@ -24,7 +24,7 @@ import {
   Plus,
   UsersRound,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,11 +36,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
-import {
-  addMockBookingFromForm,
-  updateMockBookingStatus,
-} from "@/lib/mock-data";
 import { cn, formatCurrency } from "@/lib/utils";
+import {
+  findConflicts,
+  getNextAvailableTime,
+  conflictMessage,
+} from "@/lib/availability";
 
 type Booking = {
   id: string;
@@ -191,7 +192,6 @@ export function CalendarView({
   selectedDate,
   weekStart,
   weekEnd,
-  isSampleData,
 }: {
   bookings: Booking[];
   resources: Resource[];
@@ -200,7 +200,6 @@ export function CalendarView({
   selectedDate: string;
   weekStart: string;
   weekEnd: string;
-  isSampleData: boolean;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -229,6 +228,41 @@ export function CalendarView({
     date: dateParam(new Date(selectedDate)),
     time: "10:00",
   });
+
+  // ── Conflict detection ──
+  const bookingConflicts = useMemo(() => {
+    if (!formState.resourceId || !formState.serviceId || !formState.date || !formState.time) return [];
+    const service = services.find((s) => s.id === formState.serviceId);
+    if (!service) return [];
+    const start = new Date(`${formState.date}T${formState.time}:00`);
+    const end = new Date(start.getTime() + service.duration_min * 60_000);
+    return findConflicts(localBookings, formState.resourceId, start, end);
+  }, [formState, localBookings, services]);
+
+  const conflictWarning = useMemo(
+    () => conflictMessage(bookingConflicts),
+    [bookingConflicts],
+  );
+
+  // Auto-suggest earliest available time when resource/service/date changes
+  // (skip first run — initial formState already has a default time)
+  const initialRender = useRef(true);
+  useEffect(() => {
+    if (initialRender.current) {
+      initialRender.current = false;
+      return;
+    }
+    if (!formState.resourceId || !formState.serviceId) return;
+    const service = services.find((s) => s.id === formState.serviceId);
+    if (!service) return;
+    const suggested = getNextAvailableTime(
+      localBookings,
+      formState.resourceId,
+      service.duration_min,
+      formState.date,
+    );
+    setFormState((prev) => ({ ...prev, time: suggested }));
+  }, [formState.resourceId, formState.serviceId, formState.date]);
 
   const visibleDate = new Date(selectedDate);
   const startDate = new Date(weekStart);
@@ -325,15 +359,6 @@ export function CalendarView({
   }
 
   async function handleStatus(bookingId: string, status: string) {
-    if (isSampleData) {
-      updateMockBookingStatus(bookingId, status);
-      setLocalBookings((prev) =>
-        prev.map((b) => (b.id === bookingId ? { ...b, status } : b)),
-      );
-      setSelectedBooking(null);
-      return;
-    }
-
     setActionId(bookingId);
     await db.from("bookings").update({ status }).eq("id", bookingId);
     setActionId(null);
@@ -360,27 +385,6 @@ export function CalendarView({
       service.duration_min,
     );
     setActionId("new-booking");
-
-    if (isSampleData) {
-      const created = addMockBookingFromForm({
-        customerName: formState.customerName,
-        customerEmail: formState.customerEmail || null,
-        customerPhone: formState.customerPhone || null,
-        resourceName: resource.name,
-        serviceName: service.name,
-        durationMin: service.duration_min,
-        priceCents: service.price_cents,
-        startTime: start.toISOString(),
-        endTime: end.toISOString(),
-        status: "confirmed",
-        source: "manual",
-      });
-      setActionId(null);
-      setLocalBookings((prev) => [...prev, created as Booking]);
-      setBookingDialogOpen(false);
-      setBookingError(null);
-      return;
-    }
 
     let customerId: string | null = null;
     if (formState.customerEmail) {
@@ -440,7 +444,7 @@ export function CalendarView({
     if (error) {
       setBookingError(
         error.message.includes("no_overlap_when_held_or_confirmed")
-          ? "That court is already booked at this time."
+          ? "⚠ Double-booking prevented: That court is already booked at this time. Try a different time or court."
           : error.message,
       );
       return;
@@ -466,15 +470,14 @@ export function CalendarView({
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            className="inline-flex h-11 min-w-64 items-center justify-between rounded-xl border border-black/[0.09] bg-white px-4 text-sm font-semibold text-[#171a16] shadow-sm"
-            onClick={() => navigateTo(visibleDate)}
+            className="inline-flex h-11 w-fit items-center gap-2 rounded-xl border border-black/[0.09] bg-white px-4 text-sm font-semibold text-[#171a16] shadow-sm"
+            onClick={() => navigateTo(new Date())}
           >
             <span className="inline-flex items-center gap-3">
               <CalendarDays className="h-4 w-4" />
               {format(startDate, "MMM d")} -{" "}
               {format(addDays(endDate, -1), "MMM d, yyyy")}
             </span>
-            <ChevronDown className="h-4 w-4 text-[#696e65]" />
           </button>
           <Button variant="outline" onClick={() => navigateTo(new Date())}>
             Today
@@ -505,19 +508,13 @@ export function CalendarView({
         </div>
       </header>
 
-      {isSampleData && (
-        <div className="rounded-xl border border-[#e6efc8] bg-[#f5fadf] px-4 py-3 text-xs font-semibold text-[#50720f]">
-          Empty workspace preview. Add courts and services to create live
-          bookings.
-        </div>
-      )}
 
       <section className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1.85fr]">
         <StatCard
           icon={<CalendarDays className="h-7 w-7" />}
           label="Total bookings"
           value={String(filteredBookings.length)}
-          detail="12.4% vs last week"
+          detail={`${resources.length} court${resources.length !== 1 ? "s" : ""}`}
           tone="green"
         />
         <StatCard
@@ -530,14 +527,14 @@ export function CalendarView({
                 .filter(Boolean),
             ).size,
           )}
-          detail="8.1% vs last week"
+          detail="Unique this week"
           tone="green"
         />
         <StatCard
           icon={<Grid2X2 className="h-7 w-7" />}
           label="Courts in use"
           value={`${utilization}%`}
-          detail="3.6% vs last week"
+          detail={`${new Set(filteredBookings.map(({ booking }) => booking.resources?.name)).size} of ${resources.length} courts`}
           tone="green"
         />
         <StatCard
@@ -893,6 +890,11 @@ export function CalendarView({
                 required
               />
             </div>
+            {conflictWarning && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 sm:col-span-2">
+                {conflictWarning}
+              </p>
+            )}
             {bookingError && (
               <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 sm:col-span-2">
                 {bookingError}

@@ -55,7 +55,7 @@ _*.cjs
 .kun-design/
 
 # === Junk files from mistyped shell commands ===
-{*
+[{]*
 
 # === Dev logs ===
 .next-dev-*.log

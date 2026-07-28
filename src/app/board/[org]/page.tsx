@@ -1,166 +1,19 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, useCallback, useRef } from "react";
 import { BoardLayout, type BoardMeta, type BoardView } from "@/components/board/board-layout";
-import { ActiveCourts, type CourtData } from "@/components/board/active-courts";
-import { QueueDisplay, type QueueGroup } from "@/components/board/queue-display";
+import { BorderBeam } from "@/components/ui/border-beam";
+import { ActiveCourts, type CourtData, type CourtPlayer } from "@/components/board/active-courts";
+import { CourtStatsStrip } from "@/components/board/court-stats-strip";
+import { QueueDisplay, type QueueGroup, type QueuePlayer } from "@/components/board/queue-display";
 import { TournamentInfoPanel, type TournamentInfo } from "@/components/board/tournament-info";
 import { TournamentBracket, type BracketMatch } from "@/components/board/tournament-bracket";
 import { ShareBoard } from "@/components/board/share-board";
 import { type SponsorItem } from "@/components/board/sponsor-marquee";
-
-/* ── Mock Data ── */
-
-const MOCK_COURTS: CourtData[] = [
-  {
-    id: "c1",
-    name: "Court 1",
-    status: "active",
-    accent: "lime",
-    teamA: [
-      { name: "Marco Santos", rating: "4.0" },
-      { name: "Jenny Lim", rating: "3.5" },
-    ],
-    teamB: [
-      { name: "Rico Dizon", rating: "4.0" },
-      { name: "Anna Cruz", rating: "3.5" },
-    ],
-    startedAt: new Date(Date.now() - (10 * 60 + 8) * 1000).toISOString(),
-    durationMinutes: 15,
-    gameNumber: 2,
-  },
-  {
-    id: "c2",
-    name: "Court 2",
-    status: "active",
-    accent: "azure",
-    teamA: [
-      { name: "Kyle Tan", rating: "3.0" },
-      { name: "Mia Reyes", rating: "3.0" },
-    ],
-    teamB: [
-      { name: "Dave Ong", rating: "3.5" },
-      { name: "Sara Villanueva", rating: "3.0" },
-    ],
-    startedAt: new Date(Date.now() - (6 * 60 + 8) * 1000).toISOString(),
-    durationMinutes: 15,
-    gameNumber: 1,
-  },
-  {
-    id: "c3",
-    name: "Court 3",
-    status: "active",
-    accent: "violet",
-    teamA: [
-      { name: "Tom Aquino", rating: "4.5" },
-      { name: "Paolo Guerrero", rating: "4.5" },
-    ],
-    teamB: [
-      { name: "James Yu", rating: "4.0" },
-      { name: "Ben Mercado", rating: "4.5" },
-    ],
-    startedAt: new Date(Date.now() - (14 * 60 + 8) * 1000).toISOString(),
-    durationMinutes: 15,
-    gameNumber: 3,
-  },
-  {
-    id: "c4",
-    name: "Court 4",
-    status: "ready",
-    durationMinutes: 15,
-  },
-  {
-    id: "c5",
-    name: "Court 5",
-    status: "empty",
-    durationMinutes: 15,
-  },
-];
-
-const MOCK_QUEUE: QueueGroup[] = [
-  {
-    id: "g1",
-    label: "Up Next",
-    players: [
-      { name: "Cathy del Rosario", rating: "3.5" },
-      { name: "Mark Co", rating: "3.0" },
-      { name: "Luna Fernandez", rating: "3.5" },
-      { name: "Jared Sison", rating: "3.0" },
-    ],
-    status: "on-deck",
-    position: 1,
-    accent: "lime",
-    etaMinutes: 12,
-  },
-  {
-    id: "g2",
-    label: "Group 2",
-    players: [
-      { name: "Bea Tomas", rating: "4.0" },
-      { name: "Nico Alcantara", rating: "4.0" },
-      { name: "Tina Reyes", rating: "3.5" },
-      { name: "Ralph Dimagiba", rating: "4.0" },
-    ],
-    status: "waiting",
-    position: 2,
-    accent: "violet",
-    etaMinutes: 18,
-  },
-  {
-    id: "g3",
-    label: "Group 3",
-    players: [
-      { name: "Maya Cruz", rating: "2.5" },
-      { name: "Benjie Tan", rating: "3.0" },
-      { name: "Paolo Lazaro", rating: "2.5" },
-      { name: "Diana Lopez", rating: "3.0" },
-    ],
-    status: "waiting",
-    position: 3,
-    accent: "azure",
-    etaMinutes: 24,
-  },
-  {
-    id: "g4",
-    label: "Returned",
-    players: [
-      { name: "Rico Dizon", rating: "4.0" },
-      { name: "Anna Cruz", rating: "3.5" },
-    ],
-    status: "returned",
-    position: 4,
-    accent: "amber",
-    returnedAgoMinutes: 30,
-  },
-];
-
-const MOCK_TOURNAMENT: TournamentInfo = {
-  id: "t1",
-  name: "Club Championships",
-  format: "single_elimination",
-  skillLevel: "All levels",
-  startDate: "2026-07-25",
-  endDate: "2026-07-27",
-  status: "in_progress",
-  participants: 48,
-  maxParticipants: 48,
-  matchCount: 40,
-  completedMatches: 28,
-  description: "Annual club championship. Pool play + bracket. 8 courts in simultaneous use.",
-  entryFee: "Members only",
-  currentRound: "Quarterfinals",
-};
-
-const MOCK_BRACKET: BracketMatch[] = [
-  // Quarterfinals (round 3 of 4)
-  { id: "qf1", round: 3, position: 0, teamA: "Marco / Jenny", teamB: "Rico / Anna", scoreA: "11-7", scoreB: "13-15", winner: "A" },
-  { id: "qf2", round: 3, position: 1, teamA: "Tom / Paolo", teamB: "Kyle / Mia", scoreA: "11-3", scoreB: "11-9", winner: "A" },
-  { id: "qf3", round: 3, position: 2, teamA: "James / Ben", teamB: "Cathy / Mark", scoreA: "15-13", scoreB: "8-11", winner: "B" },
-  { id: "qf4", round: 3, position: 3, teamA: "Bea / Nico", teamB: "Maya / Benjie", scoreA: "11-5", scoreB: "11-4", winner: "A" },
-  // Semifinals (round 4 of 4)
-  { id: "sf1", round: 4, position: 0, teamA: "Marco / Jenny", teamB: "Tom / Paolo", scoreA: null, scoreB: null, winner: null },
-  { id: "sf2", round: 4, position: 1, teamA: "Cathy / Mark", teamB: "Bea / Nico", scoreA: null, scoreB: null, winner: null },
-];
+import { createClient } from "@/lib/supabase/client";
+import type { LiveSessionState, LiveSession } from "@/lib/session-actions";
+import { getTournamentForBoard } from "@/lib/tournament-actions";
+import type { TournamentData, BracketMatchData } from "@/lib/tournament-actions";
 
 /** Shown until an operator configures sponsors from the dashboard. */
 const DEFAULT_SPONSORS: SponsorItem[] = [
@@ -169,9 +22,62 @@ const DEFAULT_SPONSORS: SponsorItem[] = [
   { id: "s3", type: "text", content: "Pickleball Paradise", label: "Presented by:", icon: "🥒" },
 ];
 
-/* ── Session ID (mocked) ── */
+/* ── Helpers to transform session state ── */
 
-const SESSION_ID = "session-001";
+function sessionCourtsToCourtData(courts: LiveSessionState["courts"]): CourtData[] {
+  return courts.map((c) => {
+    const base: CourtData = {
+      id: c.courtId,
+      name: c.courtName,
+      status: c.status,
+      durationMinutes: c.durationMinutes,
+      gameNumber: undefined,
+    };
+
+    if (c.status === "active" && c.group && c.group.players.length >= 4) {
+      base.teamA = [c.group.players[0], c.group.players[1]] as [CourtPlayer, CourtPlayer];
+      base.teamB = [c.group.players[2], c.group.players[3]] as [CourtPlayer, CourtPlayer];
+      base.startedAt = c.startedAt ?? undefined;
+      base.gameNumber = 1;
+    } else if (c.status === "ready" && c.group) {
+      base.status = "ready";
+    }
+
+    return base;
+  });
+}
+
+function sessionToQueueGroups(state: LiveSessionState): QueueGroup[] {
+  const groups: QueueGroup[] = [];
+
+  // Groups that are waiting → they're in state.groups
+  state.groups.forEach((g, idx) => {
+    groups.push({
+      id: g.id,
+      label: g.label,
+      players: g.players.map((p) => ({ name: p.name, rating: p.rating })),
+      status: idx === 0 ? "on-deck" : "waiting",
+      position: idx + 1,
+      accent: (["lime", "violet", "azure", "amber"] as const)[idx % 4],
+      etaMinutes: (idx + 1) * 6,
+    });
+  });
+
+  // Returned players as a group
+  if (state.returned.length > 0) {
+    groups.push({
+      id: "returned",
+      label: "Returned",
+      players: state.returned.map((p) => ({ name: p.name, rating: p.rating })),
+      status: "returned",
+      position: groups.length + 1,
+      accent: "amber",
+      returnedAgoMinutes: 0,
+    });
+  }
+
+  return groups;
+}
 
 /* ── Page ── */
 
@@ -186,6 +92,21 @@ export default function BoardPage({
 
   // View toggle
   const [view, setView] = useState<BoardView>("courts-queue");
+  const [loading, setLoading] = useState(true);
+  const [sessionName, setSessionName] = useState("Open Play");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  // Real session state from the live_sessions table
+  const [courts, setCourts] = useState<CourtData[]>([]);
+  const [queue, setQueue] = useState<QueueGroup[]>([]);
+
+  // Real tournament data
+  const [tournament, setTournament] = useState<TournamentData | null>(null);
+  const [bracket, setBracket] = useState<BracketMatchData[]>([]);
+
+  // Board header settings from org_settings (title & tagline)
+  const [boardTitle, setBoardTitle] = useState<string | undefined>(undefined);
+  const [tagline, setTagline] = useState<string | undefined>(undefined);
 
   // Sponsors from localStorage (set via SessionControl dashboard)
   const [sponsors, setSponsors] = useState<SponsorItem[]>(DEFAULT_SPONSORS);
@@ -200,15 +121,95 @@ export default function BoardPage({
     } catch { /* ignore */ }
   }, []);
 
-  const waitingPlayers = MOCK_QUEUE.reduce((sum, g) => sum + g.players.length, 0);
-  const playersOnCourt = MOCK_COURTS.filter((c) => c.status === "active").length * 4;
+  // ── Fetch board header settings (one-time at mount) ──
+  useEffect(() => {
+    (async () => {
+      const db = createClient();
+      const { data: orgRow } = await db
+        .from("organizations")
+        .select("id")
+        .eq("slug", org)
+        .single();
+
+      if (!orgRow) return;
+
+      const { data: settings } = await db
+        .from("org_settings")
+        .select("board_title, board_tagline")
+        .eq("org_id", orgRow.id)
+        .maybeSingle();
+
+      if (settings) {
+        setBoardTitle(settings.board_title ?? undefined);
+        setTagline(settings.board_tagline ?? undefined);
+      }
+    })();
+  }, [org]);
+
+  // ── Fetch session state from DB ──
+  const fetchSession = useCallback(async () => {
+    const db = createClient();
+    // Resolve org slug → org id → find active session
+    const { data: orgRow } = await db
+      .from("organizations")
+      .select("id")
+      .eq("slug", org)
+      .single();
+
+    if (!orgRow) {
+      setLoading(false);
+      return;
+    }
+
+    const [sessionResult, tournamentResult] = await Promise.all([
+      db
+        .from("live_sessions")
+        .select("*")
+        .eq("org_id", orgRow.id)
+        .eq("status", "active")
+        .maybeSingle(),
+      getTournamentForBoard(org),
+    ]);
+
+    const session = sessionResult.data;
+
+    if (session) {
+      const s = session as LiveSession;
+      const state = s.state as LiveSessionState;
+      setSessionId(s.id);
+      setSessionName(s.name);
+      setCourts(sessionCourtsToCourtData(state.courts ?? []));
+      setQueue(sessionToQueueGroups(state));
+    } else {
+      setCourts([]);
+      setQueue([]);
+      setSessionName("No Active Session");
+    }
+
+    setTournament(tournamentResult.tournament as TournamentData | null);
+    setBracket(tournamentResult.bracket as BracketMatchData[]);
+    setLoading(false);
+  }, [org]);
+
+  // Initial fetch + poll every 10 seconds
+  useEffect(() => {
+    fetchSession();
+    const interval = setInterval(fetchSession, 10_000);
+    return () => clearInterval(interval);
+  }, [fetchSession]);
+
+  // Compute stats from live data
+  const waitingPlayers = queue.reduce((sum, g) => sum + g.players.length, 0);
+  const playersOnCourt = courts.filter((c) => c.status === "active").length * 4;
 
   const meta: BoardMeta = {
     orgName,
-    sessionName: "Morning Open Play",
+    sessionName,
     view,
-    tournamentName: MOCK_TOURNAMENT.name,
-    alerts: 1,
+    tournamentName: tournament?.name,
+    boardTitle,
+    tagline,
+    alerts: 0,
   };
 
   return (
@@ -216,27 +217,91 @@ export default function BoardPage({
       meta={meta}
       sponsors={sponsors}
       courtsPanel={
-        <ActiveCourts
-          courts={MOCK_COURTS}
-          stats={{
-            playersCheckedIn: playersOnCourt + waitingPlayers,
-            avgWaitMinutes: 12,
-          }}
-        />
+        loading ? (
+          <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl bg-[#151713] py-16">
+            <BorderBeam
+              size={100}
+              duration={12}
+              colorFrom="#b9f34b"
+              colorTo="#5b8def"
+              borderWidth={1}
+            />
+            <p className="text-sm text-white/20">Loading courts…</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <ActiveCourts
+              courts={courts}
+              showStats={false}
+              stats={{
+                playersCheckedIn: playersOnCourt + waitingPlayers,
+                activeGames: courts.filter((c) => c.status === "active").length,
+                courtsAvailable: courts.length,
+                avgWaitMinutes: queue.length > 0 ? queue[0]?.etaMinutes ?? 0 : 0,
+              }}
+            />
+            <CourtStatsStrip
+              stats={{
+                playersCheckedIn: playersOnCourt + waitingPlayers,
+                activeGames: courts.filter((c) => c.status === "active").length,
+                courtsAvailable: courts.length,
+                avgWaitMinutes: queue.length > 0 ? queue[0]?.etaMinutes ?? 0 : 0,
+              }}
+            />
+          </div>
+        )
       }
-      queuePanel={<QueueDisplay groups={MOCK_QUEUE} />}
+      queuePanel={
+        loading ? (
+          <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl bg-[#151713] py-16">
+            <BorderBeam
+              size={100}
+              duration={12}
+              colorFrom="#b9f34b"
+              colorTo="#5b8def"
+              borderWidth={1}
+            />
+            <p className="text-sm text-white/20">Loading queue…</p>
+          </div>
+        ) : (
+          <QueueDisplay groups={queue} />
+        )
+      }
       tournamentPanel={
         view === "courts-tournament" || view === "triple" ? (
-          <TournamentInfoPanel tournament={MOCK_TOURNAMENT} />
+          tournament ? (
+            <TournamentInfoPanel tournament={tournament as TournamentInfo} />
+          ) : (
+            <TournamentInfoPanel
+              tournament={{
+                id: "",
+                name: "No active tournament",
+                format: "single_elimination",
+                skillLevel: "—",
+                startDate: "",
+                endDate: "",
+                status: "draft",
+                participants: 0,
+                maxParticipants: 0,
+                matchCount: 0,
+                completedMatches: 0,
+                description: "",
+                entryFee: "",
+                currentRound: "",
+              }}
+            />
+          )
+        ) : bracket.length > 0 ? (
+          <TournamentBracket matches={bracket as BracketMatch[]} />
         ) : (
-          <TournamentBracket matches={MOCK_BRACKET} />
+          <TournamentBracket matches={[]} />
         )
       }
       footer={
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {/* Left: status */}
           <span className="hidden text-xs text-white/25 sm:inline">
-            Auto-refreshes every 10s
+            {sessionId ? "Auto-refreshes every 10s · Live" : "No active session"}
           </span>
 
           {/* Center: view switcher */}
@@ -266,7 +331,7 @@ export default function BoardPage({
           </div>
 
           {/* Right: share board */}
-          <ShareBoard orgId={org} sessionId={SESSION_ID} />
+          {sessionId && <ShareBoard orgId={org} sessionId={sessionId} />}
         </div>
       }
     />

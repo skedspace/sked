@@ -1,68 +1,60 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState, useRef } from "react";
 import { BoardLayout, type BoardMeta } from "@/components/board/board-layout";
-import { ActiveCourts, type CourtData } from "@/components/board/active-courts";
+import { BorderBeam } from "@/components/ui/border-beam";
+import { ActiveCourts, type CourtData, type CourtPlayer } from "@/components/board/active-courts";
 import { QueueDisplay, type QueueGroup } from "@/components/board/queue-display";
 import { type SponsorItem } from "@/components/board/sponsor-marquee";
+import { createClient } from "@/lib/supabase/client";
+import type { LiveSessionState, LiveSession } from "@/lib/session-actions";
 
-/* ── Mock data (same as main board for now) ── */
+/* ── Helpers to transform session state (shared with main board) ── */
 
-const MOCK_COURTS: CourtData[] = [
-  {
-    id: "c1",
-    name: "Court 1", status: "active",
-    teamA: [{ name: "Marco Santos", rating: "4.0" }, { name: "Jenny Lim", rating: "3.5" }],
-    teamB: [{ name: "Rico Dizon", rating: "4.0" }, { name: "Anna Cruz", rating: "3.5" }],
-    startedAt: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
-    durationMinutes: 15, gameNumber: 2,
-  },
-  {
-    id: "c2",
-    name: "Court 2", status: "active",
-    teamA: [{ name: "Kyle Tan", rating: "3.0" }, { name: "Mia Reyes", rating: "3.0" }],
-    teamB: [{ name: "Dave Ong", rating: "3.5" }, { name: "Sara Villanueva", rating: "3.0" }],
-    startedAt: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
-    durationMinutes: 15, gameNumber: 1,
-  },
-  {
-    id: "c3",
-    name: "Court 3", status: "active",
-    teamA: [{ name: "Tom Aquino", rating: "4.5" }, { name: "Paolo Guerrero", rating: "4.5" }],
-    teamB: [{ name: "James Yu", rating: "4.0" }, { name: "Ben Mercado", rating: "4.5" }],
-    startedAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
-    durationMinutes: 15, gameNumber: 3,
-  },
-  { id: "c4", name: "Court 4", status: "ready", durationMinutes: 15 },
-  { id: "c5", name: "Court 5", status: "empty", durationMinutes: 15 },
-];
+function sessionCourtsToCourtData(courts: LiveSessionState["courts"]): CourtData[] {
+  return courts.map((c) => {
+    const base: CourtData = {
+      id: c.courtId,
+      name: c.courtName,
+      status: c.status,
+      durationMinutes: c.durationMinutes,
+    };
+    if (c.status === "active" && c.group && c.group.players.length >= 4) {
+      base.teamA = [c.group.players[0], c.group.players[1]] as [CourtPlayer, CourtPlayer];
+      base.teamB = [c.group.players[2], c.group.players[3]] as [CourtPlayer, CourtPlayer];
+      base.startedAt = c.startedAt ?? undefined;
+      base.gameNumber = 1;
+    }
+    return base;
+  });
+}
 
-const MOCK_QUEUE: QueueGroup[] = [
-  {
-    id: "g1", label: "Up Next", position: 1, status: "on-deck" as const,
-    accent: "lime" as const, etaMinutes: 12,
-    players: [
-      { name: "Cathy del Rosario", rating: "3.5" }, { name: "Mark Co", rating: "3.0" },
-      { name: "Luna Fernandez", rating: "3.5" }, { name: "Jared Sison", rating: "3.0" },
-    ],
-  },
-  {
-    id: "g2", label: "Group 2", position: 2, status: "waiting" as const,
-    accent: "violet" as const, etaMinutes: 18,
-    players: [
-      { name: "Bea Tomas", rating: "4.0" }, { name: "Nico Alcantara", rating: "4.0" },
-      { name: "Tina Reyes", rating: "3.5" }, { name: "Ralph Dimagiba", rating: "4.0" },
-    ],
-  },
-  {
-    id: "g3", label: "Group 3", position: 3, status: "waiting" as const,
-    accent: "azure" as const, etaMinutes: 24,
-    players: [
-      { name: "Maya Cruz", rating: "2.5" }, { name: "Benjie Tan", rating: "3.0" },
-      { name: "Paolo Lazaro", rating: "2.5" }, { name: "Diana Lopez", rating: "3.0" },
-    ],
-  },
-];
+function sessionToQueueGroups(state: LiveSessionState): QueueGroup[] {
+  const groups: QueueGroup[] = [];
+  state.groups.forEach((g, idx) => {
+    groups.push({
+      id: g.id,
+      label: g.label,
+      players: g.players.map((p) => ({ name: p.name, rating: p.rating })),
+      status: idx === 0 ? "on-deck" : "waiting",
+      position: idx + 1,
+      accent: (["lime", "violet", "azure", "amber"] as const)[idx % 4],
+      etaMinutes: (idx + 1) * 6,
+    });
+  });
+  if (state.returned.length > 0) {
+    groups.push({
+      id: "returned",
+      label: "Returned",
+      players: state.returned.map((p) => ({ name: p.name, rating: p.rating })),
+      status: "returned",
+      position: groups.length + 1,
+      accent: "amber",
+      returnedAgoMinutes: 0,
+    });
+  }
+  return groups;
+}
 
 /* ── Page ── */
 
@@ -77,35 +69,65 @@ export default function SharedBoardPage({
   const { token } = use(searchParams);
   const [valid, setValid] = useState<boolean | null>(null);
   const [sponsors, setSponsors] = useState<SponsorItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sessionName, setSessionName] = useState("Loading…");
+  const [courts, setCourts] = useState<CourtData[]>([]);
+  const [queue, setQueue] = useState<QueueGroup[]>([]);
 
   // Validate token on mount
   const validate = useCallback(async () => {
-    if (!token) {
-      setValid(false);
-      return;
-    }
+    if (!token) { setValid(false); return; }
     try {
       const res = await fetch(`/api/board/share?token=${encodeURIComponent(token)}`);
       if (!res.ok) { setValid(false); return; }
       const data = await res.json();
-      // Verify the session matches
       setValid(data.sessionId === sessionId && data.orgId === org);
-    } catch {
-      setValid(false);
-    }
+    } catch { setValid(false); }
   }, [token, sessionId, org]);
 
+  useEffect(() => { validate(); }, [validate]);
+
+  // ── Fetch session state from DB ──
+  const fetchSession = useCallback(async () => {
+    const db = createClient();
+    const { data: orgRow } = await db
+      .from("organizations")
+      .select("id")
+      .eq("slug", org)
+      .single();
+    if (!orgRow) { setLoading(false); return; }
+
+    const { data: session } = await db
+      .from("live_sessions")
+      .select("*")
+      .eq("id", sessionId)
+      .eq("org_id", orgRow.id)
+      .single();
+
+    if (session) {
+      const s = session as LiveSession;
+      const state = s.state as LiveSessionState;
+      setSessionName(s.name);
+      setCourts(sessionCourtsToCourtData(state.courts ?? []));
+      setQueue(sessionToQueueGroups(state));
+    }
+    setLoading(false);
+  }, [org, sessionId]);
+
+  // Initial fetch + poll every 10s
   useEffect(() => {
-    validate();
-  }, [validate]);
+    if (valid === true) {
+      fetchSession();
+      const interval = setInterval(fetchSession, 10_000);
+      return () => clearInterval(interval);
+    }
+  }, [valid, fetchSession]);
 
   // Sponsors from localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem("sked_board_sponsors");
-      if (saved) {
-        setSponsors(JSON.parse(saved) as SponsorItem[]);
-      }
+      if (saved) { setSponsors(JSON.parse(saved) as SponsorItem[]); }
     } catch { /* ignore */ }
   }, []);
 
@@ -117,12 +139,8 @@ export default function SharedBoardPage({
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/5">
             <span className="text-2xl">🔒</span>
           </div>
-          <h1 className="mb-2 text-xl font-black text-white">
-            Invalid or Expired Link
-          </h1>
-          <p className="text-sm text-white/40">
-            This share link is invalid or has expired. Ask the front desk for a new link.
-          </p>
+          <h1 className="mb-2 text-xl font-black text-white">Invalid or Expired Link</h1>
+          <p className="text-sm text-white/40">This share link is invalid or has expired. Ask the front desk for a new link.</p>
         </div>
       </div>
     );
@@ -144,7 +162,7 @@ export default function SharedBoardPage({
 
   const meta: BoardMeta = {
     orgName,
-    sessionName: sessionId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+    sessionName,
     view: "courts-queue",
   };
 
@@ -152,11 +170,41 @@ export default function SharedBoardPage({
     <BoardLayout
       meta={meta}
       sponsors={sponsors}
-      courtsPanel={<ActiveCourts courts={MOCK_COURTS} />}
-      queuePanel={<QueueDisplay groups={MOCK_QUEUE} />}
+      courtsPanel={
+        loading ? (
+          <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl bg-[#151713] py-16">
+            <BorderBeam
+              size={100}
+              duration={12}
+              colorFrom="#b9f34b"
+              colorTo="#5b8def"
+              borderWidth={1}
+            />
+            <p className="text-sm text-white/20">Loading courts…</p>
+          </div>
+        ) : (
+          <ActiveCourts courts={courts} />
+        )
+      }
+      queuePanel={
+        loading ? (
+          <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl bg-[#151713] py-16">
+            <BorderBeam
+              size={100}
+              duration={12}
+              colorFrom="#b9f34b"
+              colorTo="#5b8def"
+              borderWidth={1}
+            />
+            <p className="text-sm text-white/20">Loading queue…</p>
+          </div>
+        ) : (
+          <QueueDisplay groups={queue} />
+        )
+      }
       footer={
         <div className="flex items-center justify-between text-xs text-white/25">
-          <span>Shared Board · Auto-refreshes</span>
+          <span>Shared Board · Auto-refreshes every 10s</span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#b9f34b]" />
             Connected

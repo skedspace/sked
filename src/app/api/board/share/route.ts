@@ -1,9 +1,5 @@
 import { NextResponse } from "next/server";
-import crypto from "node:crypto";
-
-/* ── In-memory token store (replace with DB in production) ── */
-
-const tokenStore = new Map<string, { orgId: string; sessionId: string; createdAt: string }>();
+import { createClient } from "@/lib/supabase/server";
 
 /* ── POST: Create a share token ── */
 
@@ -19,22 +15,36 @@ export async function POST(request: Request) {
       );
     }
 
+    const supabase = createClient();
+
     // Generate a unique token
     const token = crypto.randomUUID();
     const origin = new URL(request.url).origin;
 
-    tokenStore.set(token, {
-      orgId,
-      sessionId,
-      createdAt: new Date().toISOString(),
-    });
+    // Persist to DB
+    const { data, error } = await supabase
+      .from("share_tokens")
+      .insert({
+        org_id: orgId,
+        session_id: sessionId,
+        token,
+      })
+      .select("token, session_id, created_at")
+      .single();
+
+    if (error || !data) {
+      return NextResponse.json(
+        { error: "Failed to create share token" },
+        { status: 500 },
+      );
+    }
 
     const shareUrl = `${origin}/board/${orgId}/session/${sessionId}?token=${token}`;
 
     return NextResponse.json({
-      token,
+      token: data.token,
       shareUrl,
-      createdAt: tokenStore.get(token)!.createdAt,
+      createdAt: data.created_at,
     });
   } catch {
     return NextResponse.json(
@@ -57,13 +67,33 @@ export async function GET(request: Request) {
     );
   }
 
-  const data = tokenStore.get(token);
-  if (!data) {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("share_tokens")
+    .select("org_id, session_id, created_at, expires_at")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (error || !data) {
     return NextResponse.json(
       { error: "Token not found or expired" },
       { status: 404 },
     );
   }
 
-  return NextResponse.json(data);
+  // Check expiration
+  const expiresAt = new Date(data.expires_at);
+  if (expiresAt < new Date()) {
+    return NextResponse.json(
+      { error: "Token has expired" },
+      { status: 410 },
+    );
+  }
+
+  return NextResponse.json({
+    orgId: data.org_id,
+    sessionId: data.session_id,
+    createdAt: data.created_at,
+  });
 }

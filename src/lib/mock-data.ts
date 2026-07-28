@@ -121,7 +121,8 @@ type MockDataStore = {
 // ── Factory ──
 
 function createCustomer(idx: number): MockCustomersShape {
-  const c = CUSTOMERS_DB[idx % CUSTOMERS_DB.length];
+  const c = CUSTOMERS_DB[idx % CUSTOMERS_DB.length] ?? CUSTOMERS_DB[0];
+  if (!c) throw new Error("Mock customer fixture is empty");
   return {
     id: `cust_${uid()}`,
     name: c.name,
@@ -135,11 +136,12 @@ function createCustomer(idx: number): MockCustomersShape {
 }
 
 function createBooking(idx: number): MockBookingShape {
-  const svc = SERVICES_DB[idx % SERVICES_DB.length];
-  const cust = CUSTOMERS_DB[idx % CUSTOMERS_DB.length];
-  const res = RESOURCES_DB[idx % RESOURCES_DB.length];
+  const svc = SERVICES_DB[idx % SERVICES_DB.length] ?? SERVICES_DB[0];
+  const cust = CUSTOMERS_DB[idx % CUSTOMERS_DB.length] ?? CUSTOMERS_DB[0];
+  const res = RESOURCES_DB[idx % RESOURCES_DB.length] ?? RESOURCES_DB[0];
+  if (!svc || !cust || !res) throw new Error("Mock booking fixtures are empty");
   const hour = 8 + (idx % 10);
-  const status = STATUSES[idx % STATUSES.length];
+  const status = STATUSES[idx % STATUSES.length] ?? "confirmed";
 
   return {
     id: `bkg_${uid()}`,

@@ -2,14 +2,25 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
+type BookingRow = {
+  id: string;
+  status: string;
+  price_cents: number;
+  time_range: unknown;
+  source: string | null;
+  created_at: string;
+  org_id: string;
+};
+
 export default async function AdminBookings() {
   const supabase = createAdminClient();
 
-  const { data: bookings } = await supabase
+  const { data } = await supabase
     .from("bookings")
     .select("id, status, price_cents, time_range, source, created_at, org_id")
     .order("created_at", { ascending: false })
     .limit(100);
+  const bookings = (data ?? []) as BookingRow[];
 
   const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
     confirmed: "default",
@@ -34,7 +45,7 @@ export default async function AdminBookings() {
           <CardTitle>Recent {bookings?.length ?? 0} bookings</CardTitle>
         </CardHeader>
         <CardContent>
-          {!bookings || bookings.length === 0 ? (
+          {bookings.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">
               No bookings yet.
             </p>

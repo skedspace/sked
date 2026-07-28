@@ -21,6 +21,8 @@ type Campaign = {
   starts_at: string;
   ends_at: string;
   draw_type: string;
+  draw_nonce?: string | null;
+  draw_block_hash?: string | null;
   winner_count: number;
   status: string;
   max_entries_per_person: number;

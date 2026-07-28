@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import {
   BarChart3,
   CalendarCheck2,
   CalendarDays,
   ChevronDown,
+  ChevronRight,
   ClipboardList,
   CreditCard,
   Grid2X2,
@@ -32,38 +34,131 @@ export function DashboardSidebar({
 }) {
   const pathname = usePathname();
 
-  // Build nav items — Board link needs orgId
-  const navItems = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays },
-    { href: "/dashboard/bookings", label: "Bookings", icon: ClipboardList },
-    { href: "/dashboard/courts", label: "Courts", icon: Grid2X2 },
-    { href: "/dashboard/matches", label: "Matches", icon: Trophy },
-    { href: "/dashboard/tournaments", label: "Tournaments", icon: Swords },
-    { href: `/board/${orgId}`, label: "Board View", icon: Monitor },
-    { href: "/dashboard/session", label: "Live Session", icon: Radio },
-    {
-      href: `/dashboard/settings/board`,
-      label: "Board Settings",
-      icon: SlidersHorizontal,
-    },
-    { href: "/dashboard/customers", label: "Customers", icon: UserRound },
-    { href: "/dashboard/players", label: "Players", icon: UsersRound },
-    { href: "/dashboard/payments", label: "Payments", icon: CreditCard },
-    { href: "/dashboard/reviews", label: "Reviews", icon: Star },
-    { href: "/dashboard/reports", label: "Reports", icon: BarChart3 },
-    {
-      href: "/dashboard/settings/page",
-      label: "Public Page",
-      icon: PanelsTopLeft,
-    },
-    { href: "/dashboard/settings", label: "Settings", icon: Settings },
-  ];
-
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === href;
     return pathname.startsWith(href);
   };
+
+  type NavItem = {
+    href: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  };
+
+  type NavSection = {
+    label: string | null;
+    items: NavItem[];
+  };
+
+  const sections: NavSection[] = [
+    {
+      label: null,
+      items: [
+        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/dashboard/session", label: "Live Session", icon: Radio },
+      ],
+    },
+    {
+      label: "Scheduling",
+      items: [
+        { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays },
+        { href: "/dashboard/bookings", label: "Bookings", icon: ClipboardList },
+        { href: "/dashboard/courts", label: "Courts", icon: Grid2X2 },
+      ],
+    },
+    {
+      label: "Competition",
+      items: [
+        { href: "/dashboard/matches", label: "Matches", icon: Trophy },
+        { href: "/dashboard/tournaments", label: "Tournaments", icon: Swords },
+      ],
+    },
+    {
+      label: "Venue & Public",
+      items: [
+        { href: `/board/${orgId}`, label: "Board View", icon: Monitor },
+        {
+          href: `/dashboard/settings/board`,
+          label: "Board Settings",
+          icon: SlidersHorizontal,
+        },
+        {
+          href: "/dashboard/settings/page",
+          label: "Public Page",
+          icon: PanelsTopLeft,
+        },
+      ],
+    },
+    {
+      label: "People",
+      items: [
+        { href: "/dashboard/customers", label: "Customers", icon: UserRound },
+        { href: "/dashboard/players", label: "Players", icon: UsersRound },
+        {
+          href: "/dashboard/settings/team",
+          label: "Team",
+          icon: UsersRound,
+        },
+      ],
+    },
+    {
+      label: "Finance",
+      items: [
+        { href: "/dashboard/payments", label: "Payments", icon: CreditCard },
+        { href: "/dashboard/reviews", label: "Reviews", icon: Star },
+        { href: "/dashboard/reports", label: "Reports", icon: BarChart3 },
+      ],
+    },
+    {
+      label: null,
+      items: [{ href: "/dashboard/settings", label: "Settings", icon: Settings }],
+    },
+  ];
+
+  // Determine which sections have an active child so they auto-expand
+  function sectionHasActive(itemSet: NavItem[]) {
+    return itemSet.some((item) => isActive(item.href));
+  }
+
+  // Initialize any section that has an active item as open
+  function initOpen() {
+    const open: Record<string, boolean> = {};
+    for (const section of sections) {
+      if (section.label && sectionHasActive(section.items)) {
+        open[section.label] = true;
+      }
+    }
+    return open;
+  }
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(initOpen);
+
+  function toggleSection(label: string) {
+    setExpanded((prev) => ({ ...prev, [label]: !prev[label] }));
+  }
+
+  function renderItems(items: NavItem[]) {
+    return items.map((item) => {
+      const Icon = item.icon;
+      const active = isActive(item.href);
+
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          title={item.label}
+          className={`flex min-h-10 items-center justify-center gap-3 rounded-xl px-3 text-sm font-semibold transition-all focus-visible:ring-2 focus-visible:ring-[#65ad00] focus-visible:outline-none sm:justify-start ${
+            active
+              ? "bg-[#eff9d8] text-[#245d19]"
+              : "text-[#565b54] hover:bg-black/[0.035] hover:text-[#151713]"
+          }`}
+        >
+          <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+          <span className="hidden sm:inline">{item.label}</span>
+        </Link>
+      );
+    });
+  }
 
   return (
     <aside className="sticky top-0 flex h-screen w-16 shrink-0 flex-col border-r border-black/[0.07] bg-[#fdfcf9] px-2 py-5 sm:w-60 sm:px-5 sm:py-7">
@@ -81,27 +176,33 @@ export function DashboardSidebar({
       </Link>
 
       <nav
-        className="mt-6 flex-1 space-y-0.5 overflow-y-auto"
+        className="mt-6 flex-1 space-y-1 overflow-y-auto"
         aria-label="Main"
       >
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item.href);
+        {sections.map((section, idx) => {
+          const isStandalone = !section.label;
+          const open = isStandalone || expanded[section.label!];
 
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              title={item.label}
-              className={`flex min-h-10 items-center justify-center gap-3 rounded-xl px-3 text-sm font-semibold transition-all focus-visible:ring-2 focus-visible:ring-[#65ad00] focus-visible:outline-none sm:justify-start ${
-                active
-                  ? "bg-[#eff9d8] text-[#245d19]"
-                  : "text-[#565b54] hover:bg-black/[0.035] hover:text-[#151713]"
-              }`}
-            >
-              <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
-              <span className="hidden sm:inline">{item.label}</span>
-            </Link>
+            <div key={section.label ?? `section-${idx}`}>
+              {section.label ? (
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.label!)}
+                  className="flex hidden w-full items-center justify-between rounded-lg px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.08em] text-[#9ba097] transition-colors hover:text-[#151713] sm:flex"
+                >
+                  {section.label}
+                  {open ? (
+                    <ChevronDown className="h-3 w-3" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3" />
+                  )}
+                </button>
+              ) : null}
+              {open ? (
+                <div className="space-y-0.5">{renderItems(section.items)}</div>
+              ) : null}
+            </div>
           );
         })}
       </nav>

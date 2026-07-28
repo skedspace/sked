@@ -2,22 +2,30 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
+type MemberRow = {
+  user_id: string;
+  org_id: string;
+  role: string;
+  created_at: string;
+};
+
 export default async function AdminUsers() {
   const supabase = createAdminClient();
 
-  const { data: members } = await supabase
+  const { data } = await supabase
     .from("org_members")
     .select("user_id, org_id, role, created_at")
     .order("created_at", { ascending: false })
     .limit(100);
+  const members = (data ?? []) as MemberRow[];
 
   // Group by user for display
   const userMap = new Map<string, { roles: string[]; orgs: string[]; created_at: string }>();
 
-  members?.forEach((m) => {
+  members.forEach((m) => {
     const existing = userMap.get(m.user_id) ?? {
-      roles: [],
-      orgs: [],
+      roles: [] as string[],
+      orgs: [] as string[],
       created_at: m.created_at,
     };
     existing.roles.push(m.role);

@@ -1,4 +1,3 @@
-import { getMockBookings } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { CalendarView } from "./calendar-view";
@@ -18,7 +17,6 @@ function getWeekStart(date: Date) {
 function getRequestedDate(value?: string | string[]) {
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw) return new Date();
-
   const parsed = new Date(`${raw}T12:00:00`);
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 }
@@ -73,69 +71,15 @@ export default async function CalendarPage({
       .order("name"),
   ]);
 
-  const hasConfiguredCourts = (resourcesResult.data?.length ?? 0) > 0;
-  const isSampleData =
-    !hasConfiguredCourts && (bookingsResult.data?.length ?? 0) === 0;
-
-  const displayBookings = isSampleData
-    ? getMockBookings()
-    : (bookingsResult.data ?? []);
-  const displayResources = hasConfiguredCourts
-    ? (resourcesResult.data ?? [])
-    : [
-        { id: "court-1", name: "Court 1", type: "court", capacity: 4 },
-        { id: "court-2", name: "Court 2", type: "court", capacity: 4 },
-        { id: "court-3", name: "Court 3", type: "court", capacity: 8 },
-        { id: "court-4", name: "Court 4", type: "court", capacity: 6 },
-      ];
-  const displayServices =
-    (servicesResult.data?.length ?? 0) > 0
-      ? (servicesResult.data ?? [])
-      : isSampleData
-        ? [
-            {
-              id: "svc-rental",
-              name: "Court Rental",
-              duration_min: 60,
-              price_cents: 150000,
-            },
-            {
-              id: "svc-coaching",
-              name: "Private Coaching",
-              duration_min: 60,
-              price_cents: 200000,
-            },
-            {
-              id: "svc-social",
-              name: "Social Play",
-              duration_min: 90,
-              price_cents: 80000,
-            },
-            {
-              id: "svc-open",
-              name: "Open Play",
-              duration_min: 120,
-              price_cents: 100000,
-            },
-            {
-              id: "svc-tournament",
-              name: "Tournament Match",
-              duration_min: 120,
-              price_cents: 250000,
-            },
-          ]
-        : [];
-
   return (
     <CalendarView
-      bookings={displayBookings}
-      resources={displayResources}
-      services={displayServices}
+      bookings={(bookingsResult.data ?? []) as any[]}
+      resources={(resourcesResult.data ?? []) as any[]}
+      services={(servicesResult.data ?? []) as any[]}
       orgId={membership.org_id}
       selectedDate={requestedDate.toISOString()}
       weekStart={weekStart.toISOString()}
       weekEnd={weekEnd.toISOString()}
-      isSampleData={isSampleData}
     />
   );
 }

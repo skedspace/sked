@@ -56,7 +56,7 @@ export default async function CourtsPage({
     supabase
       .from("resources")
       .select(
-        "id, name, type, capacity, is_active, location_id, locations(id, name, address)",
+        "id, name, type, capacity, is_active, location_id, photo_url, locations(id, name, address)",
       )
       .eq("org_id", membership.org_id)
       .order("name"),
@@ -69,7 +69,6 @@ export default async function CourtsPage({
       .from("services")
       .select("id, name, duration_min, price_cents, is_active")
       .eq("org_id", membership.org_id)
-      .eq("is_active", true)
       .order("name"),
     supabase.from("service_resources").select("service_id, resource_id"),
     supabase

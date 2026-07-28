@@ -23,7 +23,7 @@ import {
   SlidersHorizontal,
   Wrench,
 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatCurrency } from "@/lib/utils";
+import { MiniCourt, accentAt } from "@/components/board/court-visuals";
 
 type Court = {
   id: string;
@@ -46,6 +47,7 @@ type Court = {
   is_active: boolean;
   location_id: string;
   locations: { id?: string; name: string; address: string | null } | null;
+  photo_url?: string | null;
 };
 
 type Location = {
@@ -94,6 +96,7 @@ type CourtFormState = {
   locationName: string;
   locationAddress: string;
   serviceIds: string[];
+  photoUrl: string;
 };
 
 const SURFACE_OPTIONS = [
@@ -152,6 +155,7 @@ function initialForm(
           .filter((link) => link.resource_id === court.id)
           .map((link) => link.service_id)
       : [],
+    photoUrl: court?.photo_url ?? "",
   };
 }
 
@@ -187,8 +191,31 @@ export function CourtsView({
   const [locationFilter, setLocationFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showFilters, setShowFilters] = useState(true);
+
+  // Merge server resources with locally added courts
+  const [addedCourts, setAddedCourts] = useState<Court[]>([]);
+  const [clientResources, setClientResources] = useState<Court[]>([]);
+  const allResources = useMemo(() => {
+    // Prefer client-fetched data (has seeded demo data), fall back to server props
+    const base = clientResources.length > 0 ? clientResources : resources;
+    return [...base, ...addedCourts];
+  }, [resources, clientResources, addedCourts]);
+
+  // On mount, fetch real/seed data from client-side Supabase
+  useEffect(() => {
+    const fetchResources = async () => {
+      const { data } = await db
+        .from("resources")
+        .select("id, name, type, capacity, is_active, location_id, locations(id, name, address), photo_url");
+      if (data && data.length > 0) {
+        setClientResources(data as Court[]);
+      }
+    };
+    fetchResources();
+  }, []);
+
   const [selectedCourtId, setSelectedCourtId] = useState(
-    resources[0]?.id ?? "",
+    allResources[0]?.id ?? "",
   );
   const [formOpen, setFormOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -198,8 +225,8 @@ export function CourtsView({
   );
 
   const selected =
-    resources.find((court) => court.id === selectedCourtId) ??
-    resources[0] ??
+    allResources.find((court) => court.id === selectedCourtId) ??
+    allResources[0] ??
     null;
   const selectedDateValue = new Date(selectedDate);
   const weekStartValue = new Date(weekStart);
@@ -210,7 +237,7 @@ export function CourtsView({
   });
 
   const courtMetrics = useMemo(() => {
-    return resources.map((court) => {
+    return allResources.map((court) => {
       const courtBookings = weekBookings.filter(
         (booking) =>
           booking.resource_id === court.id &&
@@ -251,7 +278,7 @@ export function CourtsView({
 
       return { court, utilization, priceCents, linkedServices };
     });
-  }, [resources, services, serviceLinks, operatingHours, weekBookings]);
+  }, [allResources, services, serviceLinks, operatingHours, weekBookings]);
 
   const filteredMetrics = courtMetrics.filter(({ court }) => {
     const haystack =
@@ -268,7 +295,7 @@ export function CourtsView({
     return matchesQuery && matchesLocation && matchesStatus;
   });
 
-  const activeCount = resources.filter((court) => court.is_active).length;
+  const activeCount = allResources.filter((court) => court.is_active).length;
   const averageUtilization = courtMetrics.length
     ? Math.round(
         courtMetrics.reduce((sum, item) => sum + item.utilization, 0) /
@@ -288,7 +315,7 @@ export function CourtsView({
       );
     });
     const booked = bookingMinutes(dayBookings);
-    const open = resources.reduce((total, court) => {
+    const open = allResources.reduce((total, court) => {
       const hour = operatingHours.find(
         (item) =>
           item.location_id === court.location_id &&
@@ -306,7 +333,7 @@ export function CourtsView({
     }, 0);
     return {
       day,
-      value: open > 0 ? Math.min(100, Math.round((booked / open) * 100)) : 0,
+      utilization: open > 0 ? Math.min(100, Math.round((booked / open) * 100)) : 0,
     };
   });
 
@@ -315,26 +342,15 @@ export function CourtsView({
   }
 
   function openAddDialog() {
-    setFormError(null);
     setFormState(initialForm(null, locations, serviceLinks));
+    setFormError(null);
     setFormOpen(true);
   }
 
   function openEditDialog(court: Court) {
-    setFormError(null);
-    setSelectedCourtId(court.id);
     setFormState(initialForm(court, locations, serviceLinks));
+    setFormError(null);
     setFormOpen(true);
-  }
-
-  async function handleToggleActive(court: Court) {
-    setSaving(true);
-    await db
-      .from("resources")
-      .update({ is_active: !court.is_active })
-      .eq("id", court.id);
-    setSaving(false);
-    router.refresh();
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -342,93 +358,141 @@ export function CourtsView({
     setFormError(null);
     setSaving(true);
 
-    let locationId = formState.locationId;
-    if (formState.locationMode === "new") {
-      if (!formState.locationName.trim()) {
+    try {
+      let locationId = formState.locationId;
+      if (formState.locationMode === "new") {
+        if (!formState.locationName.trim()) {
+          setSaving(false);
+          setFormError("Add a location name or choose an existing location.");
+          return;
+        }
+
+        const { data, error } = await db
+          .from("locations")
+          .insert({
+            org_id: orgId,
+            name: formState.locationName.trim(),
+            address: formState.locationAddress.trim() || null,
+          })
+          .select("id")
+          .single();
+
+        if (error || !data) {
+          setSaving(false);
+          setFormError(error?.message ?? "Could not create the location.");
+          return;
+        }
+
+        locationId = data.id;
+      }
+
+      if (!locationId) {
         setSaving(false);
-        setFormError("Add a location name or choose an existing location.");
+        setFormError("Choose a location for this court.");
         return;
       }
 
-      const { data, error } = await db
-        .from("locations")
-        .insert({
-          org_id: orgId,
-          name: formState.locationName.trim(),
-          address: formState.locationAddress.trim() || null,
-        })
-        .select("id")
-        .single();
+      const payload: Record<string, unknown> = {
+        org_id: orgId,
+        location_id: locationId,
+        name: formState.name.trim(),
+        type: formState.type,
+        capacity: Math.max(1, Number.parseInt(formState.capacity, 10) || 1),
+        is_active: formState.isActive,
+      };
 
-      if (error || !data) {
-        setSaving(false);
-        setFormError(error?.message ?? "Could not create the location.");
-        return;
+      if (formState.photoUrl) {
+        payload.photo_url = formState.photoUrl;
       }
 
-      locationId = data.id;
-    }
+      let resourceId = formState.id;
+      if (formState.id) {
+        const { error } = await db
+          .from("resources")
+          .update(payload)
+          .eq("id", formState.id);
+        if (error) {
+          console.error("Update court error:", error);
+          setSaving(false);
+          setFormError(error.message);
+          return;
+        }
+      } else {
+        const { data, error } = await db
+          .from("resources")
+          .insert(payload)
+          .select("id")
+          .single();
 
-    if (!locationId) {
+        if (error || !data) {
+          console.error("Insert court error:", error ?? "No data returned");
+          setSaving(false);
+          setFormError(error?.message ?? "Could not create the court.");
+          return;
+        }
+        resourceId = data.id;
+      }
+
+      const { error: deleteError } = await db
+        .from("service_resources")
+        .delete()
+        .eq("resource_id", resourceId);
+      if (deleteError) {
+        console.error("Delete service links error:", deleteError);
+        // Non-fatal — court was created
+      }
+      if (formState.serviceIds.length > 0) {
+        const { error } = await db.from("service_resources").insert(
+          formState.serviceIds.map((serviceId) => ({
+            resource_id: resourceId,
+            service_id: serviceId,
+          })),
+        );
+        if (error) {
+          setSaving(false);
+          setFormError(error.message);
+          return;
+        }
+      }
+
       setSaving(false);
-      setFormError("Choose a location for this court.");
-      return;
-    }
-
-    const payload = {
-      org_id: orgId,
-      location_id: locationId,
-      name: formState.name.trim(),
-      type: formState.type,
-      capacity: Math.max(1, Number.parseInt(formState.capacity, 10) || 1),
-      is_active: formState.isActive,
-    };
-
-    let resourceId = formState.id;
-    if (formState.id) {
-      const { error } = await db
-        .from("resources")
-        .update(payload)
-        .eq("id", formState.id);
-      if (error) {
-        setSaving(false);
-        setFormError(error.message);
-        return;
+      setFormOpen(false);
+      if (resourceId) {
+        setSelectedCourtId(resourceId);
+        // Add to local state so it shows immediately
+        setAddedCourts((prev) => [
+          ...prev,
+          {
+            id: resourceId,
+            name: formState.name.trim(),
+            type: formState.type,
+            capacity: Math.max(1, Number.parseInt(formState.capacity, 10) || 1),
+            is_active: formState.isActive,
+            location_id: locationId,
+            locations:
+              locations.find((l) => l.id === locationId) ??
+              (formState.locationMode === "new"
+                ? {
+                    id: locationId,
+                    name: formState.locationName.trim() || "New location",
+                    address: formState.locationAddress.trim() || null,
+                    is_active: true,
+                  }
+                : null) ?? null,
+            photo_url: formState.photoUrl || null,
+          } as Court,
+        ]);
       }
-    } else {
-      const { data, error } = await db
-        .from("resources")
-        .insert(payload)
-        .select("id")
-        .single();
-
-      if (error || !data) {
-        setSaving(false);
-        setFormError(error?.message ?? "Could not create the court.");
-        return;
-      }
-      resourceId = data.id;
-    }
-
-    await db.from("service_resources").delete().eq("resource_id", resourceId);
-    if (formState.serviceIds.length > 0) {
-      const { error } = await db.from("service_resources").insert(
-        formState.serviceIds.map((serviceId) => ({
-          resource_id: resourceId,
-          service_id: serviceId,
-        })),
+      router.refresh();
+    } catch (err) {
+      console.error("handleSubmit catch:", err);
+      setSaving(false);
+      setFormError(
+        err instanceof Error
+          ? err.message
+          : "Failed to create court. Check your connection and try again.",
       );
-      if (error) {
-        setSaving(false);
-        setFormError(error.message);
-        return;
-      }
     }
-
-    setSaving(false);
-    setFormOpen(false);
-    if (resourceId) setSelectedCourtId(resourceId);
-    router.refresh();
   }
 
   return (
@@ -445,15 +509,14 @@ export function CourtsView({
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            className="inline-flex h-11 min-w-64 items-center justify-between rounded-xl border border-black/[0.09] bg-white px-4 text-sm font-semibold text-[#171a16] shadow-sm"
-            onClick={() => navigateTo(selectedDateValue)}
+            className="inline-flex h-11 w-fit items-center gap-2 rounded-xl border border-black/[0.09] bg-white px-4 text-sm font-semibold text-[#171a16] shadow-sm"
+            onClick={() => navigateTo(new Date())}
           >
             <span className="inline-flex items-center gap-3">
               <CalendarDays className="h-4 w-4" />
               {format(weekStartValue, "MMM d")} -{" "}
               {format(addDays(weekEndValue, -1), "MMM d, yyyy")}
             </span>
-            <ChevronDown className="h-4 w-4 text-[#696e65]" />
           </button>
           <Button
             variant="outline"
@@ -485,7 +548,7 @@ export function CourtsView({
         <StatCard
           icon={<Grid2X2 className="h-7 w-7" />}
           label="Total Courts"
-          value={String(resources.length)}
+          value={String(allResources.length)}
           detail={`${locations.length} location${locations.length === 1 ? "" : "s"}`}
         />
         <StatCard
@@ -493,8 +556,8 @@ export function CourtsView({
           label="Active Courts"
           value={String(activeCount)}
           detail={
-            resources.length
-              ? `${Math.round((activeCount / resources.length) * 100)}% of total`
+            allResources.length
+              ? `${Math.round((activeCount / allResources.length) * 100)}% of total`
               : "No courts yet"
           }
         />
@@ -518,9 +581,7 @@ export function CourtsView({
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
         <section className="overflow-hidden rounded-2xl border border-black/[0.07] bg-white shadow-[0_10px_28px_rgba(23,26,22,0.05)]">
           <div className="p-6">
-            <h2 className="text-lg font-black tracking-[-0.03em]">
-              All Courts
-            </h2>
+            <h2 className="text-lg font-black tracking-[-0.03em]">All Courts</h2>
             <div className="mt-7 flex flex-col gap-3 lg:flex-row lg:items-center">
               <label className="relative flex-1">
                 <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-[#6c7168]" />
@@ -548,7 +609,7 @@ export function CourtsView({
                     value={statusFilter}
                     onChange={setStatusFilter}
                     options={[
-                      { value: "all", label: "All statuses" },
+                      { value: "all", label: "All status" },
                       { value: "active", label: "Active" },
                       { value: "inactive", label: "Inactive" },
                       { value: "maintenance", label: "Maintenance" },
@@ -557,287 +618,209 @@ export function CourtsView({
                 </>
               )}
               <Button
-                variant="outline"
-                size="icon"
-                aria-label="Filters"
-                onClick={() => setShowFilters((v) => !v)}
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className="gap-2"
               >
-                <SlidersHorizontal />
+                <SlidersHorizontal className="h-4 w-4" />
+                {showFilters ? "Hide" : "Filters"}
               </Button>
             </div>
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] border-collapse text-left">
-              <thead>
-                <tr className="border-y border-black/[0.07] bg-[#fbfaf7] text-[11px] font-black text-[#5f655d] uppercase">
-                  <th className="px-6 py-4">Court</th>
-                  <th className="px-4 py-4">Location</th>
-                  <th className="px-4 py-4">Surface</th>
-                  <th className="px-4 py-4">Status</th>
-                  <th className="px-4 py-4">Price / Hour</th>
-                  <th className="px-4 py-4">Utilization</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredMetrics.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="px-6 py-16 text-center text-sm text-[#6b7068]"
+          <div className="divide-y divide-black/[0.05] border-t border-black/[0.07]">
+            {filteredMetrics.length === 0 ? (
+              <p className="px-6 py-12 text-center text-sm text-[#6b7068]">
+                {allResources.length === 0
+                  ? "No courts yet. Click 'Add court' to get started."
+                  : "No courts match your search."}
+              </p>
+            ) : (
+              filteredMetrics.map(({ court, utilization, priceCents, linkedServices }) => {
+                const isSelected = selectedCourtId === court.id;
+                return (
+                  <div
+                    key={court.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedCourtId(court.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCourtId(court.id); } }}
+                    className={`flex w-full cursor-pointer items-center gap-4 px-6 py-4 text-left transition-colors hover:bg-[#f9fbf7] ${
+                      isSelected ? "bg-[#f3f9eb]" : ""
+                    }`}
+                  >
+                    {court.photo_url ? (
+                      <img
+                        src={court.photo_url}
+                        alt={court.name}
+                        className="h-12 w-16 shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <CourtThumb inactive={!court.is_active} />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-bold text-[#171a16]">
+                          {court.name}
+                        </span>
+                        <StatusPill court={court} compact />
+                      </div>
+                      <p className="mt-0.5 text-xs text-[#6b7068]">
+                        {court.type}
+                        {court.locations?.name && (
+                          <> · {court.locations.name}</>
+                        )}
+                        {priceCents && (
+                          <> · from {formatCurrency(priceCents)}/hr</>
+                        )}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold tabular-nums text-[#171a16]">
+                        {utilization}%
+                      </span>
+                      <p className="text-xs text-[#6b7068]">utilized</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); openEditDialog(court); }}
+                      className="rounded-lg p-2 text-[#6b7068] hover:bg-black/5 hover:text-[#171a16]"
                     >
-                      {resources.length === 0
-                        ? "No courts yet. Add your first court to start managing availability."
-                        : "No courts match the current filters."}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredMetrics.map(({ court, utilization, priceCents }) => (
-                    <tr
-                      key={court.id}
-                      className={cn(
-                        "border-b border-black/[0.06] transition-colors hover:bg-[#fbfcf7]",
-                        selected?.id === court.id && "bg-[#fbfcf7]",
-                      )}
-                    >
-                      <td className="px-6 py-4">
-                        <button
-                          type="button"
-                          className="flex items-center gap-4 text-left"
-                          onClick={() => setSelectedCourtId(court.id)}
-                        >
-                          <CourtThumb inactive={!court.is_active} />
-                          <span>
-                            <span className="font-black text-[#171a16]">
-                              {court.name}
-                            </span>
-                            {resources[0]?.id === court.id && (
-                              <Badge className="ml-2 bg-[#eff9d7] text-[#407414] shadow-none">
-                                Main
-                              </Badge>
-                            )}
-                          </span>
-                        </button>
-                      </td>
-                      <td className="px-4 py-4 text-sm">
-                        <p className="font-semibold text-[#171a16]">
-                          {court.locations?.name ?? "No location"}
-                        </p>
-                        <p className="mt-1 text-xs text-[#6b7068]">
-                          {court.locations?.address ?? "Address not set"}
-                        </p>
-                      </td>
-                      <td className="px-4 py-4 text-sm">
-                        <p className="font-semibold text-[#171a16]">
-                          {court.type.split(" - ")[0] ?? court.type}
-                        </p>
-                        <p className="mt-1 text-xs text-[#6b7068]">
-                          {court.type.split(" - ")[1] ?? "Surface not set"}
-                        </p>
-                      </td>
-                      <td className="px-4 py-4">
-                        <StatusPill court={court} />
-                      </td>
-                      <td className="px-4 py-4 text-sm font-semibold">
-                        {priceCents === null
-                          ? "Not set"
-                          : formatCurrency(priceCents)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-3">
-                          <span className="w-9 text-sm font-bold">
-                            {utilization}%
-                          </span>
-                          <span className="h-1.5 w-24 rounded-full bg-[#e6e5de]">
-                            <span
-                              className="block h-full rounded-full bg-[#62c51c]"
-                              style={{ width: `${utilization}%` }}
-                            />
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            aria-label={`Edit ${court.name}`}
-                            onClick={() => openEditDialog(court)}
-                          >
-                            <MoreHorizontal />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-6 py-5 text-sm text-[#626860]">
-            Showing {filteredMetrics.length} of {resources.length} courts
+                      <Edit3 className="h-4 w-4" />
+                    </button>
+                  </div>
+                );
+              })
+            )}
           </div>
         </section>
 
-        <aside className="space-y-4">
-          <section className="rounded-2xl border border-black/[0.07] bg-white p-5 shadow-[0_10px_28px_rgba(23,26,22,0.05)]">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-black">Court preview</h2>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label="Previous court"
-                  disabled={resources.length < 2}
-                  onClick={() => {
-                    const index = resources.findIndex(
-                      (court) => court.id === selected?.id,
-                    );
-                    const nextIndex =
-                      index <= 0 ? resources.length - 1 : index - 1;
-                    setSelectedCourtId(resources[nextIndex]?.id ?? "");
-                  }}
-                >
-                  <ChevronLeft />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label="Next court"
-                  disabled={resources.length < 2}
-                  onClick={() => {
-                    const index = resources.findIndex(
-                      (court) => court.id === selected?.id,
-                    );
-                    const nextIndex =
-                      index >= resources.length - 1 ? 0 : index + 1;
-                    setSelectedCourtId(resources[nextIndex]?.id ?? "");
-                  }}
-                >
-                  <ChevronRight />
-                </Button>
-              </div>
-            </div>
-
-            {selected ? (
-              <div className="mt-4">
-                <CourtPreviewArt court={selected} />
-                <div className="mt-4 flex items-center gap-2">
-                  <h3 className="text-lg font-black">{selected.name}</h3>
-                  <StatusPill court={selected} compact />
-                </div>
-                <p className="mt-3 flex items-center gap-2 text-sm text-[#636860]">
-                  <MapPin className="h-4 w-4" />
-                  {selected.locations?.name ?? "No location"}
-                  {selected.locations?.address
-                    ? `, ${selected.locations.address}`
-                    : ""}
-                </p>
-                <p className="mt-2 flex items-center gap-2 text-sm text-[#636860]">
-                  <Grid2X2 className="h-4 w-4" />
-                  {selected.type} · {selected.capacity} player capacity
-                </p>
-                <div className="mt-5 grid gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => openEditDialog(selected)}
-                  >
-                    <Edit3 />
-                    Edit court details
-                  </Button>
-                  <Button
-                    variant={selected.is_active ? "outline" : "default"}
-                    disabled={saving}
-                    onClick={() => handleToggleActive(selected)}
-                  >
-                    {selected.is_active ? "Mark inactive" : "Reactivate court"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <p className="mt-8 text-sm text-[#6b7068]">
-                Add a court to see its live preview and controls.
-              </p>
-            )}
-          </section>
-
-          <section className="rounded-2xl border border-black/[0.07] bg-white p-5 shadow-[0_10px_28px_rgba(23,26,22,0.05)]">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-black">Utilization this week</h2>
-              <SelectField
-                value="this-week"
-                onChange={() => undefined}
-                options={[{ value: "this-week", label: "This week" }]}
-                compact
-              />
-            </div>
-            <div className="mt-6 grid h-36 grid-cols-7 items-end gap-3 border-b border-[#e5e5de]">
-              {dailyUtilization.map(({ day, value }) => (
-                <div
-                  key={day.toISOString()}
-                  className="flex h-full flex-col items-center justify-end gap-2"
-                >
-                  <span className="text-[11px] font-bold text-[#4f554d]">
-                    {value}%
-                  </span>
-                  <span
-                    className="w-7 rounded-t-md bg-[#72d322]"
-                    style={{ height: `${Math.max(4, value)}%` }}
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="mt-2 grid grid-cols-7 gap-3 text-center text-[11px] font-bold">
-              {dailyUtilization.map(({ day }) => (
-                <span key={day.toISOString()}>{format(day, "EEE")}</span>
-              ))}
-            </div>
-            <p className="mt-3 text-right text-xs font-bold text-[#4d8715]">
-              Avg {averageUtilization}%
-            </p>
-          </section>
-
-          <section className="rounded-2xl border border-black/[0.07] bg-white p-5 shadow-[0_10px_28px_rgba(23,26,22,0.05)]">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-black">Upcoming maintenance</h2>
-              <button
-                type="button"
-                className="text-xs font-bold text-[#547b14]"
-                onClick={() => {
-                  setLocationFilter("all");
-                  setStatusFilter("all");
-                  setQuery("");
-                }}
+        <section className="space-y-4">
+          {selected ? (
+            <>
+              <div
+                className={`relative overflow-hidden rounded-2xl border border-black/[0.07] bg-white shadow-[0_10px_28px_rgba(23,26,22,0.05)] ${
+                  !selected.is_active ? "grayscale" : ""
+                }`}
               >
-                View all
-              </button>
-            </div>
-            <div className="mt-5 space-y-4">
-              {needsAttention.length === 0 ? (
-                <p className="text-sm text-[#6b7068]">
-                  No inactive or maintenance-marked courts right now.
-                </p>
-              ) : (
-                needsAttention.slice(0, 3).map(({ court }) => (
-                  <div key={court.id} className="flex gap-3">
-                    <span className="grid h-9 w-9 place-items-center rounded-full bg-[#fff0db] text-[#f08a00]">
-                      <Wrench className="h-4 w-4" />
-                    </span>
+                {selected.photo_url ? (
+                  <img
+                    src={selected.photo_url}
+                    alt={selected.name}
+                    className="h-48 w-full object-cover"
+                  />
+                ) : (
+                  <CourtPreviewArt court={selected} />
+                )}
+                <div className="p-5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-[#171a16]">
+                      {selected.name}
+                    </h3>
+                    <StatusPill court={selected} />
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <p className="text-sm font-black">{court.name}</p>
-                      <p className="mt-1 text-xs text-[#6b7068]">
-                        {court.is_active ? court.type : "Court is inactive"}
-                      </p>
+                      <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6b7068]">
+                        Surface
+                      </span>
+                      <span className="mt-0.5 block font-semibold text-[#171a16]">
+                        {selected.type}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6b7068]">
+                        Capacity
+                      </span>
+                      <span className="mt-0.5 block font-semibold text-[#171a16]">
+                        {selected.capacity} players
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6b7068]">
+                        Location
+                      </span>
+                      <span className="mt-0.5 block font-semibold text-[#171a16]">
+                        {selected.locations?.name ?? "—"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6b7068]">
+                        Utilization
+                      </span>
+                      <span className="mt-0.5 block font-semibold text-[#171a16]">
+                        {courtMetrics.find((m) => m.court.id === selected.id)?.utilization ?? 0}%
+                      </span>
                     </div>
                   </div>
-                ))
-              )}
+                  {(() => {
+                    const metric = courtMetrics.find((m) => m.court.id === selected.id);
+                    return metric && metric.linkedServices.length > 0 ? (
+                      <div className="mt-4">
+                        <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6b7068]">
+                          Linked Services
+                        </span>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {metric.linkedServices.map((service) => (
+                            <Badge key={service.id} variant="secondary">
+                              {service.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEditDialog(selected)}
+                    className="mt-5 w-full"
+                  >
+                    <Edit3 className="mr-2 h-4 w-4" />
+                    Edit court
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-black/[0.07] bg-white p-5 shadow-[0_10px_28px_rgba(23,26,22,0.05)]">
+                <h4 className="text-sm font-bold text-[#171a16]">
+                  Weekly Utilization
+                </h4>
+                <div className="mt-4 flex items-end gap-2" style={{ height: 72 }}>
+                  {dailyUtilization.map(({ day, utilization: util }) => (
+                    <div
+                      key={day.toISOString()}
+                      className="flex flex-1 flex-col items-center gap-1"
+                    >
+                      <div
+                        className="w-full rounded-t-md transition-all"
+                        style={{
+                          height: `${Math.max(4, util)}%`,
+                          backgroundColor:
+                            util > 70
+                              ? "#62c51c"
+                              : util > 40
+                                ? "#b9d99b"
+                                : "#e2e7db",
+                        }}
+                      />
+                      <span className="text-[10px] font-medium text-[#6b7068]">
+                        {format(day, "EEE")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-black/10 bg-white py-24 shadow-[0_10px_28px_rgba(23,26,22,0.05)]">
+              <p className="text-sm text-[#6b7068]">Select a court to view details</p>
             </div>
-          </section>
-        </aside>
+          )}
+        </section>
       </div>
 
+      {/* ── Add / Edit Court Dialog ── */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="max-w-2xl border-0 bg-white sm:rounded-2xl">
           <DialogHeader>
@@ -905,6 +888,27 @@ export function CourtsView({
               ]}
             />
 
+            {/* ── Photo upload ── */}
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Court Photo</Label>
+              <div className="flex items-start gap-4">
+                <div className="space-y-2">
+                  <p className="text-xs text-[#6b7068]">
+                    Paste an image URL:
+                  </p>
+                  <Input
+                    placeholder="https://example.com/court.jpg"
+                    value={formState.photoUrl}
+                    onChange={(e) =>
+                      setFormState((prev) => ({ ...prev, photoUrl: e.target.value }))
+                    }
+                    className="text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ── Location ── */}
             <div className="space-y-3 sm:col-span-2">
               <Label>Location</Label>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -976,14 +980,10 @@ export function CourtsView({
               )}
             </div>
 
+            {/* ── Services ── */}
             <div className="space-y-3 sm:col-span-2">
               <Label>Bookable services</Label>
-              {services.length === 0 ? (
-                <p className="rounded-xl border border-black/10 bg-[#fbfaf7] p-3 text-sm text-[#6b7068]">
-                  No services yet. Add services in Settings to attach prices and
-                  booking types.
-                </p>
-              ) : (
+              {services.length === 0 ? null : (
                 <div className="grid gap-2 sm:grid-cols-2">
                   {services.map((service) => (
                     <label
@@ -1187,14 +1187,11 @@ function CourtThumb({ inactive = false }: { inactive?: boolean }) {
   return (
     <span
       className={cn(
-        "relative block h-11 w-14 shrink-0 overflow-hidden rounded-lg bg-[#2c67a5]",
-        inactive && "grayscale",
+        "relative block h-11 w-14 shrink-0 overflow-hidden rounded-lg bg-[#151713]",
+        inactive && "opacity-40",
       )}
     >
-      <span className="absolute inset-x-0 bottom-0 h-5 bg-[#4d7a35]" />
-      <span className="absolute top-2 right-2 left-2 h-7 rounded-sm border border-white/80" />
-      <span className="absolute top-2 left-1/2 h-7 w-px bg-white/80" />
-      <span className="absolute top-[22px] right-2 left-2 h-px bg-white/80" />
+      <MiniCourt accent="lime" live={false} className="scale-[1.8] origin-top" />
     </span>
   );
 }
@@ -1203,20 +1200,12 @@ function CourtPreviewArt({ court }: { court: Court }) {
   return (
     <div
       className={cn(
-        "relative h-48 overflow-hidden rounded-xl bg-[#2f76b6]",
-        !court.is_active && "grayscale",
+        "relative h-48 overflow-hidden rounded-xl bg-[#151713]",
+        !court.is_active && "opacity-40",
       )}
     >
-      <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-[#b9d5ec] to-[#d6edf8]" />
-      <div className="absolute inset-x-0 bottom-0 h-20 bg-[#527b3b]" />
-      <div className="absolute top-16 right-8 left-8 h-24 skew-y-[-8deg] border-2 border-white bg-[#236db5] shadow-xl">
-        <div className="absolute inset-x-0 top-1/2 h-0.5 bg-white" />
-        <div className="absolute inset-y-0 left-1/2 w-0.5 bg-white" />
-        <div className="absolute top-0 left-1/4 h-full w-0.5 bg-white/80" />
-        <div className="absolute top-0 right-1/4 h-full w-0.5 bg-white/80" />
-      </div>
-      <div className="absolute top-[92px] right-4 left-4 h-2 bg-[#101914]/70" />
-      <p className="absolute bottom-4 left-4 rounded-full bg-white/90 px-3 py-1 text-xs font-black text-[#171a16]">
+      <MiniCourt accent="lime" live={false} className="p-6" />
+      <p className="absolute bottom-4 left-4 rounded-full bg-black/50 px-3 py-1 text-xs font-black text-white backdrop-blur-sm">
         {court.name}
       </p>
     </div>

@@ -233,7 +233,6 @@ function CreateDiscountForm({ orgId, onDone }: { orgId: string; onDone: () => vo
             value={valuePercent}
             onChange={(e) => setValuePercent(e.target.value)}
             placeholder="10"
-            suffix="%"
             required
           />
         ) : (

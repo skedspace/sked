@@ -67,15 +67,65 @@ function createMockClient() {
     error: null,
   } as any;
 
-  function makeChain(isOrgMembers: boolean): any {
+  function makeChain(isOrgMembers: boolean, tableName?: string): any {
     const singleResult = isOrgMembers ? mockResult : emptySingleResult;
     const limitResult = isOrgMembers ? mockArrayResult : emptyResult;
+
+    // Seed data for dev mode
+    const seedData: Record<string, any[]> = {
+      org_members: [
+        { org_id: MOCK_ORG_ID, user_id: MOCK_USER_ID, role: "owner" },
+      ],
+      locations: [
+        { id: "loc-1", org_id: MOCK_ORG_ID, name: "Main Branch", address: "123 Court St", is_active: true },
+      ],
+      resources: [
+        { id: "court-1", org_id: MOCK_ORG_ID, location_id: "loc-1", name: "Court 1", type: "Outdoor - Hard Court", capacity: 4, is_active: true },
+        { id: "court-2", org_id: MOCK_ORG_ID, location_id: "loc-1", name: "Court 2", type: "Outdoor - Hard Court", capacity: 4, is_active: true },
+        { id: "court-3", org_id: MOCK_ORG_ID, location_id: "loc-1", name: "Court 3", type: "Indoor - Pro Surface", capacity: 4, is_active: true },
+      ],
+      services: [
+        { id: "svc-1", org_id: MOCK_ORG_ID, name: "Court Rental (1 hr)", duration_min: 60, price_cents: 35000, is_active: true },
+        { id: "svc-2", org_id: MOCK_ORG_ID, name: "Court Rental (2 hr)", duration_min: 120, price_cents: 65000, is_active: true },
+      ],
+      service_resources: [
+        { service_id: "svc-1", resource_id: "court-1" },
+        { service_id: "svc-1", resource_id: "court-2" },
+        { service_id: "svc-1", resource_id: "court-3" },
+        { service_id: "svc-2", resource_id: "court-1" },
+        { service_id: "svc-2", resource_id: "court-2" },
+        { service_id: "svc-2", resource_id: "court-3" },
+      ],
+      operating_hours: [
+        { location_id: "loc-1", weekday: 1, opens_at: "07:00", closes_at: "21:00", is_active: true },
+        { location_id: "loc-1", weekday: 2, opens_at: "07:00", closes_at: "21:00", is_active: true },
+        { location_id: "loc-1", weekday: 3, opens_at: "07:00", closes_at: "21:00", is_active: true },
+        { location_id: "loc-1", weekday: 4, opens_at: "07:00", closes_at: "21:00", is_active: true },
+        { location_id: "loc-1", weekday: 5, opens_at: "07:00", closes_at: "21:00", is_active: true },
+        { location_id: "loc-1", weekday: 6, opens_at: "08:00", closes_at: "18:00", is_active: true },
+      ],
+      players: [
+        { id: "player-1", org_id: MOCK_ORG_ID, name: "Marco Santos", skill_level: 4.0, status: "active", play_style: "All Court Player" },
+        { id: "player-2", org_id: MOCK_ORG_ID, name: "Jenny Lim", skill_level: 3.5, status: "active", play_style: "All Court Player" },
+        { id: "player-3", org_id: MOCK_ORG_ID, name: "Rico Dizon", skill_level: 4.0, status: "active", play_style: "All Court Player" },
+        { id: "player-4", org_id: MOCK_ORG_ID, name: "Anna Cruz", skill_level: 3.5, status: "active", play_style: "All Court Player" },
+      ],
+    };
+
+    const tableSeed = tableName ? seedData[tableName] : undefined;
+    const seededResult = tableSeed
+      ? { data: tableSeed, error: null }
+      : emptyResult;
+    const seededSingleResult = tableSeed
+      ? { data: tableSeed[0] ?? null, error: null }
+      : emptySingleResult;
+
     return {
       select: () => {
-        const c = makeChain(isOrgMembers);
-        c.single = async () => singleResult;
-        c.limit = async () => limitResult;
-        c.maybeSingle = async () => singleResult;
+        const c = makeChain(isOrgMembers, tableName);
+        c.single = async () => seededSingleResult;
+        c.limit = async () => seededResult;
+        c.maybeSingle = async () => seededSingleResult;
         [
           "eq",
           "neq",
@@ -122,8 +172,20 @@ function createMockClient() {
         };
         return c;
       },
-      update: () => makeChain(isOrgMembers),
-      delete: () => makeChain(isOrgMembers),
+      update: () => {
+        const c = makeChain(isOrgMembers);
+        ["eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "contains", "filter", "order", "limit", "range", "maybeSingle", "single"].forEach((m) => {
+          c[m] = () => c;
+        });
+        return c;
+      },
+      delete: () => {
+        const c = makeChain(isOrgMembers);
+        ["eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "contains", "filter", "order", "limit", "range", "maybeSingle", "single"].forEach((m) => {
+          c[m] = () => c;
+        });
+        return c;
+      },
       single: async () => singleResult,
       limit: async () => limitResult,
       maybeSingle: async () => singleResult,
@@ -137,7 +199,7 @@ function createMockClient() {
         error: null,
       }),
     },
-    from: (table: string) => makeChain(table === "org_members"),
+    from: (table: string) => makeChain(table === "org_members", table),
     rpc: (fn: string, args?: Record<string, unknown>) => {
       const result =
         fn === "get_public_page" && args?.page_slug === MOCK_ORG_SLUG

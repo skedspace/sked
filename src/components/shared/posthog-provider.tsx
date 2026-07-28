@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { Suspense, createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { env } from "@/lib/env";
 
@@ -30,8 +30,6 @@ export function usePostHog() {
  */
 export function PostHogProvider({ children }: { children: ReactNode }) {
   const [client, setClient] = useState<any>(null);
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (!env.NEXT_PUBLIC_POSTHOG_KEY) return;
@@ -63,15 +61,6 @@ export function PostHogProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Track page views
-  useEffect(() => {
-    if (!client) return;
-
-    client.capture("$pageview", {
-      path: pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : ""),
-    });
-  }, [client, pathname, searchParams]);
-
   const capture = (event: string, properties?: Record<string, unknown>) => {
     if (client) client.capture(event, properties);
   };
@@ -86,7 +75,25 @@ export function PostHogProvider({ children }: { children: ReactNode }) {
 
   return (
     <PostHogContext.Provider value={{ client, capture, identify, reset }}>
+      <Suspense fallback={null}>
+        <PostHogPageViewTracker client={client} />
+      </Suspense>
       {children}
     </PostHogContext.Provider>
   );
+}
+
+function PostHogPageViewTracker({ client }: { client: any | null }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (!client) return;
+
+    client.capture("$pageview", {
+      path: pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : ""),
+    });
+  }, [client, pathname, searchParams]);
+
+  return null;
 }

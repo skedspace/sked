@@ -406,11 +406,11 @@ export function TournamentsView() {
           <button
             type="button"
             className="inline-flex h-11 items-center gap-2 rounded-xl border border-black/[0.09] bg-white px-4 text-xs font-bold shadow-sm transition-colors hover:border-black/20"
+            onClick={() => setWeekOffset(0)}
           >
             <CalendarDays className="h-4 w-4" />
             {format(weekStartDate, "MMM d")} –{" "}
             {format(addDays(weekStartDate, 6), "MMM d, yyyy")}
-            <ChevronDown className="h-3.5 w-3.5 text-[#696e65]" />
           </button>
           <Button
             className="bg-[#050604] px-5 text-white hover:bg-[#171a16]"

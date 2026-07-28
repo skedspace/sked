@@ -1038,15 +1038,17 @@ function SectionRow({
       </button>
       <button
         type="button"
+        role="switch"
+        aria-checked={enabled}
         onClick={onToggle}
         aria-label={`${enabled ? "Hide" : "Show"} ${label}`}
-        className={`relative h-7 w-12 shrink-0 cursor-pointer rounded-full overflow-hidden transition-colors ${
-          enabled ? "bg-[#75c51b]" : "bg-[#d9ddd2]"
+        className={`flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-1 transition-colors ${
+          enabled ? "bg-[#b9f34b]" : "bg-[#d6d7d2]"
         }`}
       >
         <span
-          className={`absolute top-[4px] h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-            enabled ? "translate-x-6" : "translate-x-1"
+          className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+            enabled ? "translate-x-5" : "translate-x-0"
           }`}
         />
       </button>

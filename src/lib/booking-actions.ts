@@ -75,7 +75,63 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
       customerId = newCustomer.id;
     }
 
-    // 1.5 Check plan limits before creating booking
+    // 1.5 Auto-create a player linked to this customer
+    // Customers are also players — we need player records for board view, matches, tournaments, reports.
+    const customerNameForPlayer = customerName;
+    const customerEmailForPlayer = customerEmail;
+    const customerPhoneForPlayer = customerPhone;
+
+    // Check if a player already exists linked to this customer
+    const { data: existingPlayer } = await supabase
+      .from("players")
+      .select("id")
+      .eq("customer_id", customerId)
+      .maybeSingle();
+
+    if (!existingPlayer) {
+      // Also check by email or phone (in case they were added onsite first)
+      let matchedPlayerId: string | null = null;
+      if (customerEmailForPlayer) {
+        const { data: byEmail } = await supabase
+          .from("players")
+          .select("id")
+          .eq("org_id", orgId)
+          .eq("email", customerEmailForPlayer)
+          .maybeSingle();
+        if (byEmail) matchedPlayerId = byEmail.id;
+      }
+      if (!matchedPlayerId && customerPhoneForPlayer) {
+        const { data: byPhone } = await supabase
+          .from("players")
+          .select("id")
+          .eq("org_id", orgId)
+          .eq("phone", customerPhoneForPlayer)
+          .maybeSingle();
+        if (byPhone) matchedPlayerId = byPhone.id;
+      }
+
+      if (matchedPlayerId) {
+        // Link existing player to this customer
+        await supabase
+          .from("players")
+          .update({ customer_id: customerId })
+          .eq("id", matchedPlayerId);
+      } else {
+        // Create a new player with default skill level 2.0 (beginner)
+        await supabase.from("players").insert({
+          org_id: orgId,
+          customer_id: customerId,
+          name: customerNameForPlayer,
+          email: customerEmailForPlayer || null,
+          phone: customerPhoneForPlayer || null,
+          skill_level: 2.0,
+          play_style: "All Court Player",
+          status: "active",
+        });
+      }
+    }
+
+    // 3. Check plan limits before creating booking
     const { data: planCheck } = await supabase.rpc("can_create_booking", {
       p_org_id: orgId,
     });
@@ -87,7 +143,7 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
       };
     }
 
-    // 2. Create the booking with idempotency key
+    // 4. Create the booking with idempotency key
     const { data: booking, error } = await supabase
       .from("bookings")
       .insert({
@@ -127,7 +183,7 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
       return { success: false, error: error.message };
     }
 
-    // 3. Increment usage counter and log audit
+    // 5. Increment usage counter and log audit
     await supabase.rpc("increment_usage", { p_org_id: orgId });
     await supabase.from("audit_log").insert({
       org_id: orgId,

@@ -57,13 +57,15 @@ The schema is organized into six domains:
 │  services ───────┤  (what gets booked)               │
 │  service_resources                                  │
 │  customers ──────┤                                   │
+│  players ────────┤  (on-site players, linked to      │
+│                  │   customers; used in board view,   │
+│                  │   matches, tournaments, reports)   │
 │  bookings ───────┤  (the core transaction)           │
 │  payments ───────┤                                   │
 ├──────────────────┼──────────────────────────────────┤
-│              PUBLIC PAGE                             │
-│  pages ──────────┤  (storefront per org)             │
-├──────────────────┼──────────────────────────────────┤
-│             CAMPAIGNS & RAFFLES                      │
+│              MATCHES & TOURNAMENTS                   │
+│  matches ────────┤                                   │
+│  match_players ──┤  (player participation in matches) │
 │  campaigns ──────┤                                   │
 │  campaign_tasks ─┤                                   │
 │  entrants ───────┤                                   │
@@ -267,7 +269,53 @@ Tracks payment transactions for bookings.
 
 ---
 
-### 3.4 Public Page
+### 3.4 Players
+
+#### `players`
+On-site players registered at the facility. Every customer who books is automatically also created as a player (if they don't already exist). Players can also be added manually on-site via the Session Control dashboard. Player data drives the board view, matches, tournaments, and reports.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `UUID` | `PK DEFAULT gen_random_uuid()` | |
+| `org_id` | `UUID` | `NOT NULL REFERENCES organizations(id) ON DELETE CASCADE` | |
+| `customer_id` | `UUID` | `REFERENCES customers(id) ON DELETE SET NULL` | Links back to the customer who booked — null if added on-site without booking |
+| `name` | `TEXT` | `NOT NULL` | |
+| `email` | `TEXT` | | |
+| `phone` | `TEXT` | | |
+| `skill_level` | `NUMERIC(2,1)` | `NOT NULL DEFAULT 2.0 CHECK (skill_level >= 1.0 AND skill_level <= 5.0)` | 1.0–5.0 scale. Default 2.0 = Beginner. Customers who book get this default unless overridden |
+| `play_style` | `TEXT` | `NOT NULL DEFAULT 'All Court Player'` | e.g. All Court Player, Aggressive Baseline, Serve & Volley |
+| `status` | `TEXT` | `NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive'))` | |
+| `birthday` | `DATE` | | |
+| `notes` | `TEXT` | | |
+| `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT now()` | |
+| `updated_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT now()` | |
+
+**Indexes:**
+```sql
+CREATE INDEX idx_players_org_status ON players(org_id, status);
+CREATE INDEX idx_players_org_skill ON players(org_id, skill_level);
+CREATE INDEX idx_players_customer ON players(customer_id);
+```
+
+**RLS:** Tenant isolation policy applied.
+
+#### `match_players`
+Links players to matches (many-to-many) with team assignment and result.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `UUID` | `PK DEFAULT gen_random_uuid()` | |
+| `org_id` | `UUID` | `NOT NULL REFERENCES organizations(id) ON DELETE CASCADE` | |
+| `match_id` | `UUID` | `NOT NULL REFERENCES matches(id) ON DELETE CASCADE` | |
+| `player_id` | `UUID` | `NOT NULL REFERENCES players(id) ON DELETE CASCADE` | |
+| `team` | `TEXT` | `CHECK (team IN ('a', 'b'))` | Which team the player is assigned to |
+| `result` | `TEXT` | `CHECK (result IN ('win', 'loss', 'draw'))` | Match outcome for this player |
+| `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT now()` | |
+| | | `UNIQUE (match_id, player_id)` | A player can only appear once per match |
+
+---
+
+### 3.5 Public Page
 
 #### `pages`
 The public-facing storefront configuration for an organization. One row per org.
@@ -774,6 +822,8 @@ organizations 1──N locations
 organizations 1──N resources
 organizations 1──N services
 organizations 1──N customers
+organizations 1──N players
+organizations 1──N matches
 organizations 1──N campaigns
 organizations 1──1 pages
 
@@ -785,9 +835,15 @@ services      N──M resources       (via service_resources)
 services      1──N bookings
 
 resources     1──N bookings
+resources     1──N matches          (optional FK)
 
 customers     1──N bookings
+customers     1──O players          (optional — a customer may or may not have a linked player)
 
+players       1──N match_players
+players       O──1 customers        (a player may or may not have a linked customer)
+
+matches       1──N match_players
 bookings      0──N payments
 bookings      N──1 org_members     (assigned_staff_id)
 

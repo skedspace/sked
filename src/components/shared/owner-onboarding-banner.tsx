@@ -94,6 +94,7 @@ export function OwnerOnboardingBanner() {
 
   function handleNext() {
     const step = TOUR_STEPS[currentStep];
+    if (!step) return;
     if (step.action && currentStep < TOUR_STEPS.length - 1) {
       router.push(step.action.href);
     }
@@ -106,7 +107,8 @@ export function OwnerOnboardingBanner() {
 
   if (dismissed || !isOwner) return null;
 
-  const step = TOUR_STEPS[currentStep];
+  const step = TOUR_STEPS[currentStep] ?? TOUR_STEPS[0];
+  if (!step) return null;
 
   return (
     <div className="relative mb-6 overflow-hidden rounded-xl border border-primary/30 bg-primary/5 p-4 shadow-sm">

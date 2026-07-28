@@ -320,7 +320,14 @@ export function QueueDisplay({
             {title}
           </h2>
         )}
-        <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-[#151713] py-16">
+        <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl bg-[#151713] py-16">
+          <BorderBeam
+            size={100}
+            duration={12}
+            colorFrom="#b9f34b"
+            colorTo="#5b8def"
+            borderWidth={1}
+          />
           <p className="text-sm text-white/20">No groups in queue</p>
         </div>
       </section>
@@ -328,14 +335,17 @@ export function QueueDisplay({
   }
 
   return (
-    <section className={cn("flex flex-col gap-3", className)}>
+    <section className={cn("flex flex-col gap-4", className)}>
       {title && (
-        <header className="flex items-center justify-between">
+        <header className="flex items-center gap-2">
           <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/45">
             {title}
           </h2>
-          <span className="text-[11px] text-white/35">
-            {waitingCount} waiting
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#b9f34b]/10 px-2 py-0.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#b9f34b] animate-sked-pulse" />
+            <span className="font-mono text-[11px] font-bold text-[#b9f34b]">
+              {waitingCount}
+            </span>
           </span>
         </header>
       )}

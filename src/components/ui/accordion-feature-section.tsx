@@ -59,7 +59,7 @@ export const FeatureAccordion = ({
 }: {
   features?: FeatureItem[];
 }) => {
-  const [activeImage, setActiveImage] = useState(features[0].image);
+  const [activeImage, setActiveImage] = useState(features[0]?.image ?? defaultFeatures[0]?.image ?? "");
 
   return (
     <section>

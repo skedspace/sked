@@ -1,14 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
   Check,
   Copy,
   ExternalLink,
   Monitor,
+  Plus,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { BoardHeaderEditor } from "@/components/board/board-header-editor";
 import {
   getAllLayouts,
   type MosaicLayoutDef,
@@ -156,6 +160,12 @@ export function BoardSettings({ orgId }: BoardSettingsProps) {
         </a>
       </div>
 
+      {/* Board Header Editor */}
+      <BoardHeaderEditor orgId={orgId} />
+
+      {/* Board Sponsors */}
+      <SponsorManager />
+
       {/* Layout Presets */}
       <div>
         <div className="mb-4 flex items-center justify-between">
@@ -203,6 +213,158 @@ export function BoardSettings({ orgId }: BoardSettingsProps) {
             generate QR codes for mobile viewing.
           </li>
         </ol>
+      </div>
+    </div>
+  );
+}
+
+/* ── Sponsor Manager ── */
+
+type SponsorItem = {
+  id: string;
+  type: "text" | "logo";
+  content: string;
+  url?: string;
+  label?: string;
+  icon?: string;
+};
+
+const DEFAULT_SPONSORS: SponsorItem[] = [
+  { id: "s1", type: "text", content: "🥇 Presented by Pickleball Paradise" },
+  { id: "s2", type: "text", content: "🏆 Official Sponsor: SportsTech Pro" },
+];
+
+const STORAGE_KEY = "sked_board_sponsors";
+
+function SponsorManager() {
+  const [sponsors, setSponsors] = useState<SponsorItem[]>(DEFAULT_SPONSORS);
+  const [input, setInput] = useState("");
+  const [type, setType] = useState<"text" | "logo">("text");
+  const [url, setUrl] = useState("");
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) setSponsors(JSON.parse(saved) as SponsorItem[]);
+    } catch { /* ignore */ }
+  }, []);
+
+  const addSponsor = () => {
+    if (!input.trim()) return;
+    const item: SponsorItem = {
+      id: `s-${Date.now()}`,
+      type,
+      content: input.trim(),
+      url: url.trim() || undefined,
+    };
+    const next = [...sponsors, item];
+    setSponsors(next);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setInput("");
+    setUrl("");
+  };
+
+  const removeSponsor = (id: string) => {
+    const next = sponsors.filter((s) => s.id !== id);
+    setSponsors(next);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  };
+
+  return (
+    <div className="rounded-xl border border-black/[0.07] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-bold text-[#151713]">Board Sponsors</h2>
+          <p className="mt-0.5 text-sm text-[#5d615b]">
+            Manage sponsors that appear on the public board display.
+          </p>
+        </div>
+        <span className="rounded-full bg-[#f3f3ef] px-2.5 py-1 text-xs font-medium text-[#5d615b]">
+          {sponsors.length}
+        </span>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <div className="flex-1 min-w-[160px]">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Sponsor name or logo URL…"
+              className="h-9 text-sm"
+            />
+          </div>
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as "text" | "logo")}
+            className="h-9 rounded-lg border border-black/[0.07] bg-white px-2 text-xs font-medium text-[#5d615b] outline-none focus:ring-2 focus:ring-[#65ad00]"
+          >
+            <option value="text">Text</option>
+            <option value="logo">Image URL</option>
+          </select>
+          <Input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="Optional link URL…"
+            className="h-9 min-w-[140px] flex-1 text-sm"
+          />
+          <Button
+            type="button"
+            size="sm"
+            onClick={addSponsor}
+            disabled={!input.trim()}
+            className="h-9"
+          >
+            <Plus className="h-4 w-4" />
+            Add
+          </Button>
+        </div>
+
+        {type === "logo" && (
+          <p className="text-xs text-[#8a8f89]">
+            Paste a direct image URL (e.g., https://example.com/logo.png). Images appear inverted on the dark board.
+          </p>
+        )}
+
+        {sponsors.length === 0 ? (
+          <p className="py-4 text-center text-sm text-[#8a8f89]">No sponsors yet.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {sponsors.map((s) => (
+              <div
+                key={s.id}
+                className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-[#fbfaf7]"
+              >
+                {s.type === "logo" ? (
+                  <span className="text-xs font-medium text-[#65ad00]">🖼</span>
+                ) : (
+                  <span className="text-xs font-medium text-[#65ad00]">Aa</span>
+                )}
+                <span className="min-w-0 flex-1 truncate text-sm text-[#151713]">
+                  {s.content}
+                </span>
+                {s.url && (
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[#65ad00] hover:underline"
+                  >
+                    link
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeSponsor(s.id)}
+                  className="rounded-full p-1 text-[#8a8f89] hover:bg-red-50 hover:text-red-500"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

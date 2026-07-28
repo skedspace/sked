@@ -340,15 +340,14 @@ export function MatchesView({
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            className="inline-flex h-11 min-w-64 items-center justify-between rounded-xl border border-black/[0.09] bg-white px-4 text-sm font-semibold text-[#171a16] shadow-sm"
-            onClick={() => navigateTo(selectedDateValue)}
+            className="inline-flex h-11 w-fit items-center gap-2 rounded-xl border border-black/[0.09] bg-white px-4 text-sm font-semibold text-[#171a16] shadow-sm"
+            onClick={() => navigateTo(new Date())}
           >
             <span className="inline-flex items-center gap-3">
               <CalendarDays className="h-4 w-4" />
               {format(weekStartValue, "MMM d")} -{" "}
               {format(addDays(weekEndValue, -1), "MMM d, yyyy")}
             </span>
-            <ChevronDown className="h-4 w-4 text-[#696e65]" />
           </button>
           <Button
             variant="outline"

@@ -27,7 +27,7 @@ import {
   UsersRound,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +40,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatCurrency } from "@/lib/utils";
+import {
+  findConflicts,
+  getNextAvailableTime,
+  conflictMessage,
+} from "@/lib/availability";
 
 type Payment = {
   id: string;
@@ -215,6 +220,7 @@ export function BookingsList({
   const [formError, setFormError] = useState<string | null>(null);
   const [showFilterToolbar, setShowFilterToolbar] = useState(true);
   const [page, setPage] = useState(1);
+
   const [formState, setFormState] = useState<BookingFormState>({
     customerName: "",
     customerEmail: "",
@@ -226,6 +232,41 @@ export function BookingsList({
     status: "confirmed",
     paymentStatus: "unpaid",
   });
+
+  // ── Conflict detection ──
+  const bookingConflicts = useMemo(() => {
+    if (!formState.resourceId || !formState.serviceId || !formState.date || !formState.time) return [];
+    const service = services.find((s) => s.id === formState.serviceId);
+    if (!service) return [];
+    const start = new Date(`${formState.date}T${formState.time}:00`);
+    const end = new Date(start.getTime() + service.duration_min * 60_000);
+    return findConflicts(bookings, formState.resourceId, start, end);
+  }, [formState, bookings, services]);
+
+  const conflictWarning = useMemo(
+    () => conflictMessage(bookingConflicts),
+    [bookingConflicts],
+  );
+
+  // Auto-suggest earliest available time when resource/service/date changes
+  // (skip first run — initial formState already has a default time)
+  const initialRender = useRef(true);
+  useEffect(() => {
+    if (initialRender.current) {
+      initialRender.current = false;
+      return;
+    }
+    if (!formState.resourceId || !formState.serviceId) return;
+    const service = services.find((s) => s.id === formState.serviceId);
+    if (!service) return;
+    const suggested = getNextAvailableTime(
+      bookings,
+      formState.resourceId,
+      service.duration_min,
+      formState.date,
+    );
+    setFormState((prev) => ({ ...prev, time: suggested }));
+  }, [formState.resourceId, formState.serviceId, formState.date]);
 
   const parsedBookings = useMemo(
     () =>
@@ -417,7 +458,7 @@ export function BookingsList({
       setActionId(null);
       setFormError(
         error?.message?.includes("no_overlap_when_held_or_confirmed")
-          ? "That court is already booked at this time."
+          ? "⚠ Double-booking prevented: That court is already booked at this time. Try a different time or court."
           : (error?.message ?? "Could not create the booking."),
       );
       return;
@@ -454,15 +495,14 @@ export function BookingsList({
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            className="inline-flex h-11 min-w-64 items-center justify-between rounded-xl border border-black/[0.09] bg-white px-4 text-sm font-semibold text-[#171a16] shadow-sm"
-            onClick={() => navigateTo(selectedDateValue)}
+            className="inline-flex h-11 w-fit items-center gap-2 rounded-xl border border-black/[0.09] bg-white px-4 text-sm font-semibold text-[#171a16] shadow-sm"
+            onClick={() => navigateTo(new Date())}
           >
             <span className="inline-flex items-center gap-3">
               <CalendarDays className="h-4 w-4" />
               {format(weekStartValue, "MMM d")} -{" "}
               {format(addDays(weekEndValue, -1), "MMM d, yyyy")}
             </span>
-            <ChevronDown className="h-4 w-4 text-[#696e65]" />
           </button>
           <Button variant="outline" onClick={() => setShowFilterToolbar((v) => !v)}>
             <Filter />
@@ -936,6 +976,11 @@ export function BookingsList({
               <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 sm:col-span-2">
                 Add at least one active court and one active service before
                 creating bookings.
+              </p>
+            )}
+            {conflictWarning && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 sm:col-span-2">
+                {conflictWarning}
               </p>
             )}
             {formError && (

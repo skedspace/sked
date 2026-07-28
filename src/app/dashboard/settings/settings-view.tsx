@@ -33,7 +33,7 @@ import {
   WalletCards,
   Zap,
 } from "lucide-react";
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -778,12 +778,6 @@ function GeneralTab({
 }) {
   return (
     <>
-      <BusinessInfoSection
-        form={form}
-        editing={editing === "business"}
-        onEdit={() => setEditing("business")}
-        update={update}
-      />
       <BrandingSection
         form={form}
         brandInitials={brandInitials}
@@ -1422,6 +1416,29 @@ function BrandingSection({
   onEdit: () => void;
   update: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
 }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+
+  async function handleLogoUpload(file: File) {
+    setLogoUploading(true);
+    try {
+      const supabase = createClient();
+      const path = `org-logos/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("logos")
+        .upload(path, file);
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from("logos").getPublicUrl(path);
+      if (urlData?.publicUrl) {
+        update("logo_url", urlData.publicUrl);
+      }
+    } catch {
+      // upload failed silently – user can still paste a URL manually
+    } finally {
+      setLogoUploading(false);
+    }
+  }
+
   return (
     <SettingsSection
       id="branding"
@@ -1435,13 +1452,37 @@ function BrandingSection({
         <div>
           <p className="text-xs font-semibold text-[#626860]">Logo</p>
           <div className="mt-3 flex items-center gap-4">
-            <span className="grid h-14 w-14 place-items-center rounded-xl bg-[#050604] text-lg font-black text-[#b9f34b]">
-              {brandInitials}
-            </span>
-            <Button variant="outline" type="button">
+            {form.logo_url ? (
+              <img
+                src={form.logo_url}
+                alt="Business logo"
+                className="h-14 w-14 rounded-xl object-cover"
+              />
+            ) : (
+              <span className="grid h-14 w-14 place-items-center rounded-xl bg-[#050604] text-lg font-black text-[#b9f34b]">
+                {brandInitials}
+              </span>
+            )}
+            <Button
+              variant="outline"
+              type="button"
+              disabled={logoUploading}
+              onClick={() => fileRef.current?.click()}
+            >
               <Upload />
-              Change logo
+              {logoUploading ? "Uploading..." : "Change logo"}
             </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleLogoUpload(file);
+                e.target.value = "";
+              }}
+            />
           </div>
           {editing && (
             <Input

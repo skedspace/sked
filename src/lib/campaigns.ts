@@ -34,7 +34,7 @@ export type CampaignTask = {
 export function generateOtp(): string {
   const buf = new Uint32Array(1);
   crypto.getRandomValues(buf);
-  const num = buf[0] % 1000000;
+  const num = (buf[0] ?? 0) % 1000000;
   return num.toString().padStart(6, "0");
 }
 
@@ -71,7 +71,11 @@ export async function performDraw(
   const shuffled = [...entries];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Number(seed % BigInt(i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    const current = shuffled[i];
+    const target = shuffled[j];
+    if (!current || !target) continue;
+    shuffled[i] = target;
+    shuffled[j] = current;
   }
 
   return shuffled.slice(0, winnerCount).map((e) => ({
