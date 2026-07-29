@@ -9,6 +9,20 @@ import { type SponsorItem } from "@/components/board/sponsor-marquee";
 import { createClient } from "@/lib/supabase/client";
 import type { LiveSessionState, LiveSession } from "@/lib/session-actions";
 
+function safeSponsors(value: unknown): SponsorItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is SponsorItem => {
+    if (!item || typeof item !== "object") return false;
+    const sponsor = item as Partial<SponsorItem>;
+    return (
+      typeof sponsor.id === "string" &&
+      (sponsor.type === "text" || sponsor.type === "logo") &&
+      typeof sponsor.content === "string" &&
+      sponsor.content.trim().length > 0
+    );
+  });
+}
+
 /* ── Helpers to transform session state (shared with main board) ── */
 
 function sessionCourtsToCourtData(courts: LiveSessionState["courts"]): CourtData[] {
@@ -97,12 +111,22 @@ export default function SharedBoardPage({
       .single();
     if (!orgRow) { setLoading(false); return; }
 
-    const { data: session } = await db
-      .from("live_sessions")
-      .select("*")
-      .eq("id", sessionId)
-      .eq("org_id", orgRow.id)
-      .single();
+    const [settingsResult, sessionResult] = await Promise.all([
+      db
+        .from("org_settings")
+        .select("board_sponsors")
+        .eq("org_id", orgRow.id)
+        .maybeSingle(),
+      db
+        .from("live_sessions")
+        .select("*")
+        .eq("id", sessionId)
+        .eq("org_id", orgRow.id)
+        .single(),
+    ]);
+
+    const session = sessionResult.data;
+    setSponsors(safeSponsors(settingsResult.data?.board_sponsors));
 
     if (session) {
       const s = session as LiveSession;
@@ -122,14 +146,6 @@ export default function SharedBoardPage({
       return () => clearInterval(interval);
     }
   }, [valid, fetchSession]);
-
-  // Sponsors from localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("sked_board_sponsors");
-      if (saved) { setSponsors(JSON.parse(saved) as SponsorItem[]); }
-    } catch { /* ignore */ }
-  }, []);
 
   // Invalid state
   if (valid === false) {

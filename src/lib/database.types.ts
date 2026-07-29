@@ -1047,6 +1047,7 @@ export type Database = {
           accent_color: string
           address: string | null
           auto_confirmation: boolean
+          board_sponsors: Json
           board_tagline: string
           board_title: string
           booking_interval_minutes: number
@@ -1081,6 +1082,7 @@ export type Database = {
           accent_color?: string
           address?: string | null
           auto_confirmation?: boolean
+          board_sponsors?: Json
           board_tagline?: string
           board_title?: string
           booking_interval_minutes?: number
@@ -1115,6 +1117,7 @@ export type Database = {
           accent_color?: string
           address?: string | null
           auto_confirmation?: boolean
+          board_sponsors?: Json
           board_tagline?: string
           board_title?: string
           booking_interval_minutes?: number

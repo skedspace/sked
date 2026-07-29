@@ -52,6 +52,20 @@ type OrgRow = {
   slug?: string | null;
 };
 
+function safeSponsors(value: unknown): SponsorItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is SponsorItem => {
+    if (!item || typeof item !== "object") return false;
+    const sponsor = item as Partial<SponsorItem>;
+    return (
+      typeof sponsor.id === "string" &&
+      (sponsor.type === "text" || sponsor.type === "logo") &&
+      typeof sponsor.content === "string" &&
+      sponsor.content.trim().length > 0
+    );
+  });
+}
+
 function sessionCourtsToCourtData(courts: LiveSessionState["courts"]): CourtData[] {
   return courts.map((c) => {
     const base: CourtData = {
@@ -156,15 +170,6 @@ export default function BoardPage({
       setCachedAt(cached.savedAt);
     }
 
-    try {
-      const saved = localStorage.getItem("sked_board_sponsors");
-      if (saved) {
-        const parsed = JSON.parse(saved) as SponsorItem[];
-        if (parsed.length > 0) setSponsors(parsed);
-      }
-    } catch {
-      // Ignore local sponsor cache issues on TV displays.
-    }
   }, [org]);
 
   const fetchSession = useCallback(async () => {
@@ -202,7 +207,7 @@ export default function BoardPage({
         await Promise.all([
           db
             .from("org_settings")
-            .select("board_title, board_tagline")
+            .select("board_title, board_tagline, board_sponsors")
             .eq("org_id", orgRow.id)
             .maybeSingle(),
           db
@@ -215,12 +220,14 @@ export default function BoardPage({
         ]);
 
       const settings = settingsResult.data as
-        | { board_title?: string | null; board_tagline?: string | null }
+        | { board_title?: string | null; board_tagline?: string | null; board_sponsors?: unknown }
         | null;
       const session = sessionResult.data as LiveSession | null;
       const nextOrgName = orgRow.name ?? fallbackOrgName;
       const nextBoardTitle = settings?.board_title ?? undefined;
       const nextTagline = settings?.board_tagline ?? undefined;
+      const settingsSponsors = safeSponsors(settings?.board_sponsors);
+      const nextSponsors = settingsSponsors.length > 0 ? settingsSponsors : DEFAULT_SPONSORS;
       let nextSessionId: string | null = null;
       let nextSessionName = "No Active Session";
       let nextCourts: CourtData[] = [];
@@ -247,6 +254,7 @@ export default function BoardPage({
       setBracket(nextBracket);
       setBoardTitle(nextBoardTitle);
       setTagline(nextTagline);
+      setSponsors(nextSponsors);
       setOffline(false);
       setCachedAt(null);
       setLoading(false);
@@ -258,7 +266,7 @@ export default function BoardPage({
         queue: nextQueue,
         tournament: nextTournament,
         bracket: nextBracket,
-        sponsors,
+        sponsors: nextSponsors,
         boardTitle: nextBoardTitle,
         tagline: nextTagline,
       });
@@ -279,7 +287,7 @@ export default function BoardPage({
       setOffline(true);
       setLoading(false);
     }
-  }, [fallbackOrgName, org, sponsors]);
+  }, [fallbackOrgName, org]);
 
   useEffect(() => {
     fetchSession();

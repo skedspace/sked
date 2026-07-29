@@ -148,7 +148,7 @@ export default async function AdminPlatformSettingsPage({ searchParams }: { sear
       nextBackupAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
     },
     notifications: [
-      { id: "status", title: systemHealthy ? "Database connected" : "Database disconnected", detail: systemHealthy ? "Platform configuration is using Supabase." : "Local preview settings are active until Supabase starts.", at: now.toISOString(), relativeLabel: "Just now", tone: systemHealthy ? "success" as const : "warning" as const },
+      { id: "status", title: systemHealthy ? "Database connected" : "Database disconnected", detail: systemHealthy ? "Platform configuration is using Supabase." : "Supabase is unavailable, so platform configuration changes cannot be persisted.", at: now.toISOString(), relativeLabel: "Just now", tone: systemHealthy ? "success" as const : "warning" as const },
       { id: "backup", title: "Backup status", detail: `Last backup ${relativeLabel(lastBackup, now)}.`, at: lastBackup, relativeLabel: relativeLabel(lastBackup, now), tone: "info" as const },
       { id: "config", title: "Configuration snapshot", detail: `${configResult.rows.length} platform settings loaded from ${configResult.source}.`, at: lastUpdated, relativeLabel: relativeLabel(lastUpdated, now), tone: "info" as const },
     ].slice(0, 6),

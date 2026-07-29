@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { isDevAuthEnabled } from "@/lib/dev-auth";
 import { DEFAULT_MONTHLY_PRICE_CENTS } from "@/lib/plans";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -213,8 +214,18 @@ async function writeLocalPricingConfig(config: PlatformPricingConfig) {
   await writeFile(localConfigPath, JSON.stringify(config, null, 2), "utf8");
 }
 
+async function writeLocalPricingConfigBestEffort(config: PlatformPricingConfig) {
+  try {
+    await writeLocalPricingConfig(config);
+  } catch {
+    // Vercel serverless filesystems can be read-only outside /tmp. Supabase is the source of truth in production.
+  }
+}
+
 export async function readPlatformPricingConfig() {
-  const localConfig = await readLocalPricingConfig();
+  const localConfig = isDevAuthEnabled() ? await readLocalPricingConfig() : defaultConfig;
+  if (isDevAuthEnabled()) return localConfig;
+
   try {
     const supabase = createAdminClient();
     const { data, error } = await withTimeout(
@@ -232,7 +243,11 @@ export async function readPlatformPricingConfig() {
 
 export async function savePlatformPricingConfig(config: PlatformPricingConfig) {
   devConfig = config;
-  await writeLocalPricingConfig(config);
+  if (isDevAuthEnabled()) {
+    await writeLocalPricingConfigBestEffort(config);
+    return { persisted: true, source: "local" as const };
+  }
+
   try {
     const supabase = createAdminClient();
     for (const row of pricingRows(config)) {
@@ -246,11 +261,12 @@ export async function savePlatformPricingConfig(config: PlatformPricingConfig) {
       );
       if (error) throw error;
     }
-    return { persisted: true };
+    return { persisted: true, source: "database" as const };
   } catch (error) {
     return {
       persisted: false,
-      error: error instanceof Error ? error.message : "Pricing saved locally because the database is unavailable.",
+      source: "database" as const,
+      error: error instanceof Error ? error.message : "Database is unavailable.",
     };
   }
 }

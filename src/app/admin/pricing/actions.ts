@@ -44,5 +44,5 @@ export async function updatePricingSettingsAction(payload: PlatformPricingConfig
 
   return result.persisted
     ? { ok: true }
-    : { ok: true, warning: result.error || "Saved locally. Database sync is unavailable." };
+    : { ok: false, error: result.error || "Pricing settings could not be saved to Supabase." };
 }

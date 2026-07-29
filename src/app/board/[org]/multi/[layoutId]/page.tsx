@@ -21,6 +21,20 @@ type OrgRow = {
   slug?: string | null;
 };
 
+function safeSponsors(value: unknown): SponsorItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is SponsorItem => {
+    if (!item || typeof item !== "object") return false;
+    const sponsor = item as Partial<SponsorItem>;
+    return (
+      typeof sponsor.id === "string" &&
+      (sponsor.type === "text" || sponsor.type === "logo") &&
+      typeof sponsor.content === "string" &&
+      sponsor.content.trim().length > 0
+    );
+  });
+}
+
 function sessionCourtsToCourtData(courts: LiveSessionState["courts"]): CourtData[] {
   return courts.map((c) => {
     const base: CourtData = {
@@ -111,12 +125,6 @@ export default function MultiBoardPage({
       setCachedAt(cached.savedAt);
     }
 
-    try {
-      const saved = localStorage.getItem("sked_board_sponsors");
-      if (saved) setSponsors(JSON.parse(saved) as SponsorItem[]);
-    } catch {
-      // Ignore local sponsor cache issues on TV displays.
-    }
   }, [org]);
 
   const fetchSession = useCallback(async () => {
@@ -149,12 +157,22 @@ export default function MultiBoardPage({
         return;
       }
 
-      const { data: session } = await db
-        .from("live_sessions")
-        .select("*")
-        .eq("org_id", orgRow.id)
-        .eq("status", "active")
-        .maybeSingle();
+      const [settingsResult, sessionResult] = await Promise.all([
+        db
+          .from("org_settings")
+          .select("board_sponsors")
+          .eq("org_id", orgRow.id)
+          .maybeSingle(),
+        db
+          .from("live_sessions")
+          .select("*")
+          .eq("org_id", orgRow.id)
+          .eq("status", "active")
+          .maybeSingle(),
+      ]);
+
+      const session = sessionResult.data;
+      const nextSponsors = safeSponsors(settingsResult.data?.board_sponsors);
 
       const nextOrgName = orgRow.name ?? fallbackOrgName;
       let nextSessionName = "No Active Session";
@@ -173,6 +191,7 @@ export default function MultiBoardPage({
       setSessionName(nextSessionName);
       setCourts(nextCourts);
       setQueue(nextQueue);
+      setSponsors(nextSponsors);
       setOffline(false);
       setCachedAt(null);
 
@@ -183,7 +202,7 @@ export default function MultiBoardPage({
         queue: nextQueue,
         tournament: null,
         bracket: [],
-        sponsors,
+        sponsors: nextSponsors,
       });
     } catch {
       const cached = loadCachedBoardState(org);
@@ -197,7 +216,7 @@ export default function MultiBoardPage({
       }
       setOffline(true);
     }
-  }, [fallbackOrgName, org, sponsors]);
+  }, [fallbackOrgName, org]);
 
   useEffect(() => {
     fetchSession();

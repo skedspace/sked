@@ -41,8 +41,8 @@ async function writeLocalRows(rows: PlatformConfigRow[]) {
 }
 
 export async function readPlatformConfig() {
-  const localRows = await readLocalRows();
   if (isDevAuthEnabled()) {
+    const localRows = await readLocalRows();
     return { rows: localRows, databaseHealthy: false, source: "local" as const };
   }
 
@@ -58,20 +58,20 @@ export async function readPlatformConfig() {
       source: "database" as const,
     };
   } catch {
-    return { rows: localRows, databaseHealthy: false, source: "local" as const };
+    return { rows: [], databaseHealthy: false, source: "database" as const };
   }
 }
 
 export async function savePlatformConfig(key: string, value: string, description: string) {
-  const localRows = await readLocalRows();
   const updatedAt = new Date().toISOString();
-  const nextRows = [
-    ...localRows.filter((row) => row.key !== key),
-    { key, value, updated_at: updatedAt },
-  ];
-  await writeLocalRows(nextRows);
 
   if (isDevAuthEnabled()) {
+    const localRows = await readLocalRows();
+    const nextRows = [
+      ...localRows.filter((row) => row.key !== key),
+      { key, value, updated_at: updatedAt },
+    ];
+    await writeLocalRows(nextRows);
     return { persisted: true, source: "local" as const };
   }
 
@@ -89,7 +89,7 @@ export async function savePlatformConfig(key: string, value: string, description
   } catch (error) {
     return {
       persisted: false,
-      source: "local" as const,
+      source: "database" as const,
       error: error instanceof Error ? error.message : "Database is unavailable.",
     };
   }

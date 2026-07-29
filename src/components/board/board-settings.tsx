@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ArrowUpRight,
   Check,
@@ -13,6 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BoardHeaderEditor } from "@/components/board/board-header-editor";
+import { createClient } from "@/lib/supabase/client";
+import type { SponsorItem } from "@/components/board/sponsor-marquee";
 import {
   getAllLayouts,
   type MosaicLayoutDef,
@@ -25,6 +27,7 @@ import {
 interface BoardSettingsProps {
   orgId: string;
   orgSlug: string;
+  initialSponsors: SponsorItem[];
 }
 
 /* ── Preset card ── */
@@ -123,7 +126,7 @@ function PresetCard({
 
 /* ── Component ── */
 
-export function BoardSettings({ orgId, orgSlug }: BoardSettingsProps) {
+export function BoardSettings({ orgId, orgSlug, initialSponsors }: BoardSettingsProps) {
   const layouts = getAllLayouts();
 
   return (
@@ -165,7 +168,7 @@ export function BoardSettings({ orgId, orgSlug }: BoardSettingsProps) {
       <BoardHeaderEditor orgId={orgId} />
 
       {/* Board Sponsors */}
-      <SponsorManager />
+      <SponsorManager initialSponsors={initialSponsors} orgId={orgId} />
 
       {/* Layout Presets */}
       <div>
@@ -221,36 +224,38 @@ export function BoardSettings({ orgId, orgSlug }: BoardSettingsProps) {
 
 /* ── Sponsor Manager ── */
 
-type SponsorItem = {
-  id: string;
-  type: "text" | "logo";
-  content: string;
-  url?: string;
-  label?: string;
-  icon?: string;
-};
-
 const DEFAULT_SPONSORS: SponsorItem[] = [
   { id: "s1", type: "text", content: "🥇 Presented by Pickleball Paradise" },
   { id: "s2", type: "text", content: "🏆 Official Sponsor: SportsTech Pro" },
 ];
 
-const STORAGE_KEY = "sked_board_sponsors";
-
-function SponsorManager() {
-  const [sponsors, setSponsors] = useState<SponsorItem[]>(DEFAULT_SPONSORS);
+function SponsorManager({ initialSponsors, orgId }: { initialSponsors: SponsorItem[]; orgId: string }) {
+  const db = createClient();
+  const [sponsors, setSponsors] = useState<SponsorItem[]>(initialSponsors.length > 0 ? initialSponsors : DEFAULT_SPONSORS);
   const [input, setInput] = useState("");
   const [type, setType] = useState<"text" | "logo">("text");
   const [url, setUrl] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setSponsors(JSON.parse(saved) as SponsorItem[]);
-    } catch { /* ignore */ }
-  }, []);
+  async function saveSponsors(next: SponsorItem[]) {
+    setSaving(true);
+    setMessage(null);
+    const { error } = await db
+      .from("org_settings")
+      .upsert({ org_id: orgId, board_sponsors: next }, { onConflict: "org_id" });
 
-  const addSponsor = () => {
+    setSaving(false);
+    if (error) {
+      setMessage(error.message);
+      return false;
+    }
+
+    setMessage("Sponsors saved.");
+    return true;
+  }
+
+  const addSponsor = async () => {
     if (!input.trim()) return;
     const item: SponsorItem = {
       id: `s-${Date.now()}`,
@@ -260,15 +265,17 @@ function SponsorManager() {
     };
     const next = [...sponsors, item];
     setSponsors(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    setInput("");
-    setUrl("");
+    const saved = await saveSponsors(next);
+    if (saved) {
+      setInput("");
+      setUrl("");
+    }
   };
 
-  const removeSponsor = (id: string) => {
+  const removeSponsor = async (id: string) => {
     const next = sponsors.filter((s) => s.id !== id);
     setSponsors(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    await saveSponsors(next);
   };
 
   return (
@@ -313,13 +320,18 @@ function SponsorManager() {
             type="button"
             size="sm"
             onClick={addSponsor}
-            disabled={!input.trim()}
+            disabled={saving || !input.trim()}
             className="h-9"
           >
             <Plus className="h-4 w-4" />
-            Add
+            {saving ? "Saving..." : "Add"}
           </Button>
         </div>
+        {message && (
+          <p className={`text-xs ${message === "Sponsors saved." ? "text-[#367b20]" : "text-red-600"}`}>
+            {message}
+          </p>
+        )}
 
         {type === "logo" && (
           <p className="text-xs text-[#8a8f89]">

@@ -170,28 +170,32 @@ export function AdminPricing({ data }: { data: PricingData }) {
   function save() {
     setMessage("");
     startTransition(async () => {
-      const result = await updatePricingSettingsAction({
-        monthlyPriceCents: monthlyCents,
-        trialDays,
-        oneYearDiscount,
-        twoYearDiscount,
-        threeYearDiscount,
-        features,
-        customPlanName,
-        customPlanPriceCents,
-        customPlanDurationMonths: customPlanDuration,
-        customPlanEnabled,
-        showPlansToCustomers: showPlans,
-        allowTrialConversion: allowConversion,
-        autoRenewPremium: autoRenew,
-        prorationEnabled: proration,
-      });
-      if (!result.ok) {
-        setMessage(result.error || "Unable to save pricing settings.");
-        return;
+      try {
+        const result = await updatePricingSettingsAction({
+          monthlyPriceCents: monthlyCents,
+          trialDays,
+          oneYearDiscount,
+          twoYearDiscount,
+          threeYearDiscount,
+          features,
+          customPlanName,
+          customPlanPriceCents,
+          customPlanDurationMonths: customPlanDuration,
+          customPlanEnabled,
+          showPlansToCustomers: showPlans,
+          allowTrialConversion: allowConversion,
+          autoRenewPremium: autoRenew,
+          prorationEnabled: proration,
+        });
+        if (!result.ok) {
+          setMessage(result.error || "Unable to save pricing settings.");
+          return;
+        }
+        setMessage(result.warning ? `Pricing settings saved. ${result.warning}` : "Pricing settings saved.");
+        router.refresh();
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Unable to save pricing settings.");
       }
-      setMessage(result.warning ? `Pricing settings saved. ${result.warning}` : "Pricing settings saved.");
-      router.refresh();
     });
   }
 
