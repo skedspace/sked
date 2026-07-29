@@ -21,7 +21,7 @@
     "supabase:status": "supabase status",
     "supabase:stop": "supabase stop",
     "supabase:studio": "open http://localhost:54323",
-    "postinstall": "npx prettier --write package.json"
+    "paymongo:webhook:register": "node --env-file=.env.local scripts/register-platform-paymongo-webhook.mjs"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.20",

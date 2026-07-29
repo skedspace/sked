@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { isDevAuthEnabled } from "@/lib/dev-auth";
 import { NextResponse } from "next/server";
 
 /**
@@ -42,12 +43,7 @@ export async function POST(request: Request) {
 
     // In dev mode the server client is mocked — simulate success
     // so developers can test the onboarding flow without a real database.
-    const isDev =
-      process.env.NODE_ENV !== "production" ||
-      process.env.DEV_AUTH === "true" ||
-      process.env.NEXT_PUBLIC_DEV_AUTH === "true";
-
-    if (isDev) {
+    if (isDevAuthEnabled()) {
       return NextResponse.json({
         org_id: "00000000-0000-0000-0000-000000000001",
       });

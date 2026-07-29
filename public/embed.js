@@ -1,17 +1,17 @@
 (function () {
   "use strict";
 
-  var SLOTLY_HOST = "https://slotly.app";
   var scriptTag = document.currentScript;
   if (!scriptTag) return;
 
+  var skedHost = new URL(scriptTag.src).origin;
+
   var slug = scriptTag.getAttribute("data-slug");
   if (!slug) {
-    console.error("Slotly embed: missing data-slug attribute");
+    console.error("SKED embed: missing data-slug attribute");
     return;
   }
 
-  var theme = scriptTag.getAttribute("data-theme") || "light";
   var primaryColor = scriptTag.getAttribute("data-primary") || "#b9f34b";
   var buttonText = scriptTag.getAttribute("data-button-text") || "Book now";
 
@@ -41,7 +41,7 @@
 
   // Create iframe (hidden initially)
   var iframe = document.createElement("iframe");
-  iframe.src = SLOTLY_HOST + "/embed/" + slug;
+  iframe.src = skedHost + "/embed/" + slug;
   iframe.style.cssText =
     "width: 100%; height: 0; border: none; border-radius: 16px; " +
     "overflow: hidden; transition: height 300ms ease; margin-top: 0; box-shadow: 0 8px 32px rgba(0,0,0,0.1);";

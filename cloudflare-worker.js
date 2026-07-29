@@ -15,8 +15,9 @@
  * Cost: Free (100k requests/day on Workers free plan)
  */
 
-// Your Vercel deployment URL
-const VERCELL_APP_URL = "https://sked.vercel.app";
+// Canonical app URL. Keep this pointed at the apex app to avoid tying
+// subdomain routing to a specific Vercel account URL.
+const VERCEL_APP_URL = "https://sked.space";
 
 // Reserved subdomains that should NOT be routed to public pages
 const RESERVED = new Set([
@@ -25,7 +26,7 @@ const RESERVED = new Set([
   "localhost",
 ]);
 
-export default {
+const worker = {
   async fetch(request) {
     const url = new URL(request.url);
     const host = url.hostname;
@@ -39,7 +40,7 @@ export default {
 
       if (!RESERVED.has(subdomain)) {
         // Rewrite the request to the Vercel-hosted public page
-        const targetUrl = `${VERCELL_APP_URL}/p/${subdomain}${url.pathname === "/" ? "" : url.pathname}${url.search}`;
+        const targetUrl = `${VERCEL_APP_URL}/p/${subdomain}${url.pathname === "/" ? "" : url.pathname}${url.search}`;
         return fetch(targetUrl, {
           method: request.method,
           headers: request.headers,
@@ -52,3 +53,5 @@ export default {
     return fetch(request);
   },
 };
+
+export default worker;

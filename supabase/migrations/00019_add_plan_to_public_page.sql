@@ -1,8 +1,10 @@
 -- Migration: 00019_add_plan_to_public_page.sql
 -- Adds the org plan to the public page RPC so free plan pages
--- can show a "Powered by Slotly" badge.
+-- can show a "Powered by SKED" badge.
 --
 -- DOWN: Run the original function from 00008_create_public_functions.sql
+
+DROP FUNCTION IF EXISTS get_public_page(TEXT);
 
 CREATE OR REPLACE FUNCTION get_public_page(page_slug TEXT)
 RETURNS TABLE (

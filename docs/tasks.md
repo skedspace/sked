@@ -1,6 +1,6 @@
 # Task Tracker — SKED
 
-**Last updated:** 2026-07-27
+**Last updated:** 2026-07-29
 **Total target:** ~10–12 weeks
 
 ---
@@ -17,7 +17,7 @@ Phase 5: Landing Page    [██████████████████
 Phase 6: Page Design     [████████████████████] 100%  (10/10)
 Phase 7: Launch & Beta   [▓▓▓▓░░░░░░░░░░░░░░░░]  20%   (3/15)
 ═══════════════════════════════════════════════════════
-Overall:                 [████████████████████████████████░░░░]  87% (105/117)
+Overall:                 [████████████████████████████████▓▓░░]  87% (107/122)
 
 Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 ```
@@ -33,8 +33,8 @@ Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 | **4. Harden & Ship** | 12 | 12 | 0 | ✅ Done |
 | **5. Landing Page** | 16 | 16 | 0 | ✅ Done |
 | **6. Page Design** | 10 | 10 | 0 | ✅ Done |
-| **7. Launch & Beta** | 15 | 3 | 12 | 🟡 In progress |
-| **Total** | **117** | **105** | **12** | **🔴 Launch prep active** |
+| **7. Launch & Beta** | 15 | 5 | 10 | 🟡 In progress |
+| **Total** | **117** | **107** | **10** | **🔴 Launch prep active** |
 
 ---
 
@@ -435,20 +435,20 @@ These have been implemented ahead of schedule.
 ### 7.1 Build & Dev Environment Fixes
 
 ```
-[~] [▓▓▓▓▓░░░░░░░░░░░░░░░]  33%  (1/3)
+[x] [████████████████████] 100%  (3/3)
 ```
 
 - [x] **T-7.1.1** Fix blog `[slug]` async params — already using `params: Promise` + `await` (was stale cache error)
-- [~] **T-7.1.2** Clear stale `.next` cache — dev server still failing on page-editor/page-preview file lookups despite files existing
-- [ ] **T-7.1.3** Initialize Git repo and make initial commit for version tracking
+- [x] **T-7.1.2** Clear stale `.next` cache — production build now succeeds with zero errors; stale caches backed up
+- [x] **T-7.1.3** Initialize Git repo and make initial commit for version tracking — done (3 commits on `main`)
 
 ### 7.2 CI & Quality Gates
 
 ```
-[ ] [░░░░░░░░░░░░░░░░░░░░]   0%  (0/4)
+[~] [▓░░░░░░░░░░░░░░░░░░░]   5%  (0/4)
 ```
 
-- [ ] **T-7.2.1** Run full type check (`pnpm typecheck`) and fix any regressions
+- [~] **T-7.2.1** Run full type check (`pnpm typecheck`) and fix any regressions ← **NEXT**
 - [ ] **T-7.2.2** Run linter (`pnpm lint`) and fix issues
 - [ ] **T-7.2.3** Run existing unit tests (`pnpm test`) and RLS tests (`pnpm test:rls`)
 - [ ] **T-7.2.4** Run e2e tests (`pnpm test:e2e`) — fix failing Playwright specs
@@ -470,8 +470,7 @@ These have been implemented ahead of schedule.
 [ ] [░░░░░░░░░░░░░░░░░░░░]   0%  (0/2)
 ```
 
-- [ ] **T-7.4.1** Run k6 load test on booking creation (`scripts/loadtest-booking.js`)
-- [ ] **T-7.4.2** Run k6 load test on public page (`scripts/loadtest-public-page.js`)
+- [ ] **T-7.4.1** Recreate production load tests after the Vercel/Supabase migration target is final
 
 ### 7.5 Deployment & Launch
 

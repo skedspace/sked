@@ -24,7 +24,7 @@ CREATE TABLE google_calendar_syncs (
     UNIQUE (org_id)
 );
 
--- Track which Slotly bookings have been synced to Google Calendar
+-- Track which SKED bookings have been synced to Google Calendar
 CREATE TABLE google_calendar_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sync_id UUID NOT NULL REFERENCES google_calendar_syncs(id) ON DELETE CASCADE,

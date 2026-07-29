@@ -1,5 +1,5 @@
 -- Migration: 00016_create_custom_subdomains.sql
--- Custom subdomains for public pages (e.g. business.slotly.app).
+-- Custom subdomains for public pages (e.g. business.sked.space).
 --
 -- This stores the desired subdomain on the organization.
 -- Routing is handled by middleware and Vercel.

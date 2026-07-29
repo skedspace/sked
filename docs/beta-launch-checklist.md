@@ -18,8 +18,6 @@
 - [ ] **Create PostHog dashboards** (see `docs/monitoring.md`)
 
 ### Quality
-- [ ] **Run load tests**: `k6 run scripts/loadtest-booking.js`
-- [ ] **Run load tests**: `k6 run scripts/loadtest-public-page.js`
 - [ ] **Run e2e tests**: `pnpm test:e2e`
 - [ ] **Run test suite**: `pnpm test` + `pnpm test:rls`
 - [ ] **Full type check**: `pnpm typecheck`

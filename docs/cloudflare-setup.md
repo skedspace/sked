@@ -27,8 +27,8 @@ In Cloudflare DNS settings, add:
 
 | Type | Name | Content | Proxy |
 |---|---|---|---|
-| CNAME | `@` | `sked.vercel.app` | Proxied (orange cloud) |
-| CNAME | `www` | `sked.vercel.app` | Proxied |
+| CNAME | `@` | your Vercel production domain | Proxied (orange cloud) |
+| CNAME | `www` | your Vercel production domain | Proxied |
 | CNAME | `*` | `subdomain-router.you.workers.dev` | Proxied |
 
 The `*` wildcard record enables subdomain routing via the Cloudflare Worker.

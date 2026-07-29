@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 
 export function EmbedSnippet({ slug }: { slug: string }) {
   const [copied, setCopied] = useState(false);
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://sked.space";
 
-  const snippet = `<script src="https://sked.space/embed.js" data-slug="${slug}"></script>`;
+  const snippet = `<script src="${appUrl}/embed.js" data-slug="${slug}"></script>`;
 
   async function handleCopy() {
     await navigator.clipboard.writeText(snippet);
@@ -64,7 +65,7 @@ export function EmbedSnippet({ slug }: { slug: string }) {
           <p className="text-xs text-muted-foreground">
             Example:{" "}
             <code className="text-xs">
-              {`<script src="https://sked.space/embed.js" data-slug="${slug}" data-button-text="Book a court" data-primary="#b9f34b"></script>`}
+              {`<script src="${appUrl}/embed.js" data-slug="${slug}" data-button-text="Book a court" data-primary="#b9f34b"></script>`}
             </code>
           </p>
         </CardContent>
