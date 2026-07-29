@@ -7,14 +7,14 @@ import { isDevAuthEnabled } from "@/lib/dev-auth";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ redirect?: string }>;
+  searchParams: Promise<{ error?: string; redirect?: string }>;
 }) {
   const supabase = createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const { redirect: redirectTo } = await searchParams;
+  const { error, redirect: redirectTo } = await searchParams;
 
   if (session) {
     redirect(redirectTo ?? "/dashboard");
@@ -29,7 +29,11 @@ export default async function LoginPage({
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="w-full max-w-sm">
         <h1 className="mb-6 text-2xl font-bold">Sign in</h1>
-        <AuthForm mode="login" redirectTo={redirectTo} />
+        <AuthForm
+          mode="login"
+          redirectTo={redirectTo}
+          initialError={error === "auth_failed" ? "Sign-in failed. Please try again." : null}
+        />
         <div className="mt-6 border-t pt-4 text-center text-xs text-muted-foreground">
           <Link href="/signup" className="hover:underline">Create account</Link>
           <span className="mx-2">&middot;</span>

@@ -11,13 +11,15 @@ import { useAnalytics } from "@/lib/analytics";
 export function AuthForm({
   mode,
   redirectTo,
+  initialError = null,
 }: {
   mode: "login" | "signup";
   redirectTo?: string | null;
+  initialError?: string | null;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
@@ -53,13 +55,36 @@ export function AuthForm({
           analytics.trackSignUp(data.user.id);
         }
 
-        // Show confirmation message
-        setError("Check your email for the confirmation link.");
+        if (data.session) {
+          router.push(next);
+          router.refresh();
+        } else {
+          setError("Check your email for the confirmation link.");
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    setError(null);
+    setLoading(true);
+
+    try {
+      const next = redirectTo ?? (mode === "signup" ? "/onboarding" : "/dashboard");
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        },
+      });
+      if (error) throw error;
+    } catch (err) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : "Could not start Google sign-in");
     }
   }
 
@@ -114,14 +139,10 @@ export function AuthForm({
         type="button"
         variant="outline"
         className="w-full"
-        onClick={() => supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo ?? (mode === "signup" ? "/onboarding" : "/dashboard"))}`,
-          },
-        })}
+        disabled={loading}
+        onClick={handleGoogleSignIn}
       >
-        Continue with Google
+        {loading ? "Redirecting..." : "Continue with Google"}
       </Button>
     </form>
   );
