@@ -27,21 +27,6 @@ jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 54322:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -64,20 +49,19 @@ jobs:
         env:
           CI: true
 
+      - name: Export Supabase env
+        run: |
+          eval "$(supabase status -o env)"
+          echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}" >> "$GITHUB_ENV"
+          echo "AUTH_SECRET=test-secret-that-is-at-least-thirty-two-chars-long" >> "$GITHUB_ENV"
+
       - name: Run unit tests
         run: pnpm test
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          AUTH_SECRET: test-secret-that-is-at-least-thirty-two-chars-long
 
       - name: Run RLS tests
         run: pnpm test:rls
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
   e2e:
     name: E2E Tests
@@ -106,6 +90,14 @@ jobs:
         env:
           CI: true
 
+      - name: Export Supabase env
+        run: |
+          eval "$(supabase status -o env)"
+          echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}" >> "$GITHUB_ENV"
+          echo "AUTH_SECRET=test-secret-that-is-at-least-thirty-two-chars-long" >> "$GITHUB_ENV"
+
       - name: Build & start Next.js
         run: |
           pnpm build
@@ -118,11 +110,6 @@ jobs:
           done
           echo "Next.js did not become ready in time"
           exit 1
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          AUTH_SECRET: test-secret-that-is-at-least-thirty-two-chars-long
 
       - name: Run Playwright tests
         run: pnpm test:e2e
@@ -146,9 +133,9 @@ jobs:
       - name: Build Next.js
         run: pnpm build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key-placeholder
+          SUPABASE_SERVICE_ROLE_KEY: ci-service-role-placeholder
           AUTH_SECRET: test-secret-that-is-at-least-thirty-two-chars-long
 
       - name: Run Lighthouse CI
