@@ -277,7 +277,7 @@ export function AdminPaymentList({ data }: { data: AdminPaymentListData }) {
               <Link href="/admin/audit-logs">View all activity <ArrowRight /></Link>
             </div>
           </details>
-          <span className="organizations-admin-avatar" title="Klein Conejos">KC</span>
+          <span className="organizations-admin-avatar" title="Admin">AD</span>
         </div>
       </header>
 

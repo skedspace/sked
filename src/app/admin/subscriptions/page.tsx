@@ -101,66 +101,6 @@ function normalizedStatus(subscription: SubscriptionRow): SubscriptionStatus {
   return "active";
 }
 
-function mockData(from: Date, to: Date, monthlyPriceCents: number): AdminSubscriptionListData {
-  const baseline = new Date(Math.min(Date.now(), to.getTime()));
-  const at = (days: number) => {
-    const value = new Date(baseline);
-    value.setDate(value.getDate() + days);
-    return value.toISOString();
-  };
-  const rows: AdminSubscriptionRow[] = [
-    ["ace", "Ace Pickleball Club", "Makati City, PH", "Jacob Anderson", "jacob@acepb.com", "monthly", "active", null, at(22), true, 0],
-    ["yard", "The Pickle Yard", "Cebu City, PH", "Maria Santos", "maria@pickleyard.com", "trial", "trial", 10, at(10), false, 1],
-    ["rally", "Rally Point Pickleball", "Davao City, PH", "Kevin Reyes", "kevin@rallypoint.com", "trial", "trial", 2, at(2), false, 2],
-    ["hub", "Pickle Hub", "Quezon City, PH", "Angela Lopez", "angela@picklehub.com", "monthly", "past_due", null, at(-2), false, 3],
-    ["smash", "Smash Pickleball Center", "Taguig City, PH", "David Tan", "david@smashcenter.com", "monthly", "active", null, at(20), true, 4],
-    ["bay", "Bay Pickleball Club", "Iloilo City, PH", "Nicole Garcia", "nicole@baypb.com", "trial", "trial", 0, at(0), false, 5],
-    ["courtside", "CourtSide PH", "Bacolod City, PH", "Joshua Lim", "joshua@courtsideph.com", "monthly", "active", null, at(18), true, 6],
-    ["summit", "Summit Pickleball", "Baguio City, PH", "Sarah Villanueva", "sarah@summitpb.com", "trial", "expired", null, at(-14), false, 7],
-  ].map((item) => ({
-    id: `mock-sub-${item[0]}`,
-    orgId: `mock-org-${item[0]}`,
-    orgSlug: String(item[0]),
-    orgName: String(item[1]),
-    orgLocation: String(item[2]),
-    orgLogoUrl: null,
-    ownerName: String(item[3]),
-    ownerEmail: String(item[4]),
-    ownerAvatarUrl: null,
-    plan: item[5] as AdminSubscriptionRow["plan"],
-    status: item[6] as SubscriptionStatus,
-    trialDaysLeft: item[7] === null ? null : Number(item[7]),
-    renewalDate: String(item[8]),
-    monthlyFeeCents: item[5] === "monthly" ? monthlyPriceCents : 0,
-    autoRenew: Boolean(item[9]),
-    updatedAt: at(-Number(item[10])),
-  }));
-
-  return {
-    range: { from: dateKey(from), to: dateKey(to) },
-    totalAvailable: 256,
-    monthlyPriceCents,
-    metrics: [
-      { key: "premium", label: "Active Premium", value: 198, change: 0, tone: "cyan" },
-      { key: "trials", label: "Active Trials", value: 58, change: 0, tone: "orange" },
-      { key: "expiring", label: "Trials Expiring", value: 12, change: 0, detail: "Next 7 days", tone: "purple" },
-      { key: "mrr", label: "Monthly Recurring Revenue", value: 51249000, change: 0, money: true, tone: "green" },
-      { key: "past_due", label: "Past Due Payments", value: 8, change: 0, tone: "red" },
-    ],
-    subscriptions: rows,
-    organizations: rows.map((row) => ({ id: row.orgId, name: row.orgName })),
-    notifications: [
-      { id: "n1", title: "Trial ends today", detail: "Bay Pickleball Club needs conversion", at: at(0) },
-      { id: "n2", title: "Payment past due", detail: "Pickle Hub renewal is overdue", at: at(-1) },
-      { id: "n3", title: "Trial expiring soon", detail: "Rally Point Pickleball has 2 days left", at: at(-2) },
-      { id: "n4", title: "Premium active", detail: "Smash Pickleball Center renews this month", at: at(-3) },
-      { id: "n5", title: "Expired trial", detail: "Summit Pickleball trial expired", at: at(-4) },
-      { id: "n6", title: "Auto renew off", detail: "Pickle Hub will not renew automatically", at: at(-5) },
-    ],
-    demo: true,
-  };
-}
-
 export default async function AdminSubscriptions({
   searchParams,
 }: {
@@ -213,9 +153,6 @@ export default async function AdminSubscriptions({
       : DEFAULT_MONTHLY_PRICE_CENTS;
   const organizations = (organizationResult.data ?? []) as OrganizationRow[];
   const subscriptions = (subscriptionResult.data ?? []) as SubscriptionRow[];
-  if (organizations.length === 0 && subscriptions.length === 0) {
-    return <AdminSubscriptionList data={mockData(from, to, monthlyPriceCents)} />;
-  }
 
   const latestSubscription = new Map<string, SubscriptionRow>();
   subscriptions.forEach((subscription) => {

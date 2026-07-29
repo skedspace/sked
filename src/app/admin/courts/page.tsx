@@ -115,83 +115,6 @@ function amenities(resource: ResourceRow) {
   return items as AdminCourtRow["amenities"];
 }
 
-function mockData(from: Date, to: Date): AdminCourtListData {
-  const baseline = new Date(Math.min(Date.now(), to.getTime()));
-  const at = (days: number) => {
-    const value = new Date(baseline);
-    value.setDate(value.getDate() - days);
-    return value.toISOString();
-  };
-  const photos = [
-    "https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=240&q=80",
-    "https://images.unsplash.com/photo-1554068865-24cecd4e34b8?auto=format&fit=crop&w=240&q=80",
-    "https://images.unsplash.com/photo-1599474924187-334a4ae5bd3c?auto=format&fit=crop&w=240&q=80",
-    "https://images.unsplash.com/photo-1541744573515-478c959628a0?auto=format&fit=crop&w=240&q=80",
-  ];
-  const rows: AdminCourtRow[] = [
-    ["Court 1", "Ace Pickleball Club", "Makati City, PH", "outdoor", "active", "Acrylic", 4, ["lights", "seating"], at(8), photos[0]],
-    ["Court 2", "Ace Pickleball Club", "Makati City, PH", "outdoor", "active", "Acrylic", 4, ["lights", "seating", "parking"], at(23), photos[1]],
-    ["Court 3", "The Pickle Yard", "Cebu City, PH", "indoor", "active", "Premium Indoor", 4, ["lights", "seating"], at(15), photos[2]],
-    ["Court 4", "Rally Point Pickleball", "Davao City, PH", "outdoor", "maintenance", "Acrylic", 4, ["lights", "parking"], at(2), photos[3]],
-    ["Court 5", "Pickle Hub", "Quezon City, PH", "indoor", "disabled", "Wood", 4, ["seating"], null, photos[2]],
-    ["Court 6", "Smash Pickleball Center", "Taguig City, PH", "outdoor", "active", "Acrylic", 4, ["lights", "seating", "parking"], at(18), photos[0]],
-    ["Court 7", "Bay Pickleball Club", "Iloilo City, PH", "indoor", "disabled", "Premium Indoor", 4, ["lights"], null, photos[1]],
-    ["Court 8", "CourtSide PH", "Bacolod City, PH", "outdoor", "active", "Acrylic", 4, ["lights", "seating", "parking"], at(10), photos[3]],
-  ].map((item, index) => {
-    const orgSlug = String(item[1]).toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    return {
-      id: `mock-court-${index + 1}`,
-      code: `C${String(index + 1).padStart(3, "0")}`,
-      name: String(item[0]),
-      orgId: `mock-org-${orgSlug}`,
-      orgSlug,
-      orgName: String(item[1]),
-      orgLocation: String(item[2]),
-      orgLogoUrl: null,
-      type: item[3] as AdminCourtRow["type"],
-      status: item[4] as CourtStatus,
-      surface: String(item[5]),
-      capacity: Number(item[6]),
-      amenities: item[7] as AdminCourtRow["amenities"],
-      lastMaintenanceAt: item[8] as string | null,
-      photoUrl: item[9] as string,
-      utilization: [76, 72, 81, 41, 0, 78, 0, 69][index] ?? 0,
-      locationId: `mock-location-${orgSlug}`,
-    };
-  });
-
-  return {
-    range: { from: dateKey(from), to: dateKey(to) },
-    totalAvailable: 48,
-    metrics: [
-      { key: "total", label: "Total Courts", value: 48, change: 0, tone: "cyan" },
-      { key: "active", label: "Active Courts", value: 42, change: 0, detail: "87.5% of total", tone: "green" },
-      { key: "maintenance", label: "Under Maintenance", value: 3, change: 0, detail: "6.3% of total", tone: "orange" },
-      { key: "disabled", label: "Disabled Courts", value: 3, change: 0, detail: "6.3% of total", tone: "purple" },
-      { key: "utilization", label: "Avg. Utilization", value: 68, change: 0, suffix: "%", tone: "cyan" },
-    ],
-    courts: rows,
-    organizations: Array.from(new Map(rows.map((row) => [row.orgId, { id: row.orgId, name: row.orgName }])).values()),
-    locations: Array.from(
-      new Map(
-        rows.map((row) => [
-          row.locationId,
-          { id: row.locationId, orgId: row.orgId, name: `${row.orgName} Main`, address: row.orgLocation },
-        ]),
-      ).values(),
-    ),
-    notifications: [
-      { id: "n1", title: "Court under maintenance", detail: "Rally Point Pickleball - Court 4", at: at(2) },
-      { id: "n2", title: "Court disabled", detail: "Pickle Hub - Court 5", at: at(3) },
-      { id: "n3", title: "High utilization", detail: "The Pickle Yard - Court 3 is at 81%", at: at(4) },
-      { id: "n4", title: "Maintenance completed", detail: "CourtSide PH - Court 8", at: at(10) },
-      { id: "n5", title: "Photo updated", detail: "Ace Pickleball Club - Court 2", at: at(23) },
-      { id: "n6", title: "Court active", detail: "Smash Pickleball Center - Court 6", at: at(18) },
-    ],
-    demo: true,
-  };
-}
-
 export default async function AdminCourts({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const today = endOfDay(new Date());
@@ -219,7 +142,6 @@ export default async function AdminCourts({ searchParams }: { searchParams: Sear
   ]);
 
   const resources = (resourceResult.data ?? []) as ResourceRow[];
-  if (resources.length === 0) return <AdminCourtList data={mockData(from, to)} />;
 
   const orgById = new Map(((orgResult.data ?? []) as OrganizationRow[]).map((org) => [org.id, org]));
   const locationById = new Map(((locationResult.data ?? []) as LocationRow[]).map((location) => [location.id, location]));

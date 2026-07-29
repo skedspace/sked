@@ -104,70 +104,6 @@ function displayName(user: AuthUser | undefined, fallback: string) {
     .join(" ") || "Platform User";
 }
 
-function mockData(from: Date, to: Date): AdminUserListData {
-  const baseline = new Date(Math.min(Date.now(), to.getTime()));
-  const at = (days: number) => {
-    const value = new Date(baseline);
-    value.setDate(value.getDate() - days);
-    return value.toISOString();
-  };
-  const users: AdminUserRow[] = [
-    ["jacob", "Jacob Anderson", "jacob.anderson@email.com", "super_admin", "Ace Pickleball Club", "Makati City, PH", "active", at(0), at(0), 0],
-    ["maria", "Maria Santos", "maria.santos@email.com", "admin", "The Pickle Yard", "Cebu City, PH", "active", at(0), at(0), 1],
-    ["kevin", "Kevin Reyes", "kevin.reyes@email.com", "manager", "Smash Pickleball Center", "Taguig City, PH", "active", at(1), at(0), 2],
-    ["angela", "Angela Lopez", "angela.lopez@email.com", "staff", "CourtSide PH", "Bacolod City, PH", "active", at(1), at(1), 3],
-    ["david", "David Tan", "david.tan@email.com", "manager", "Rally Point Pickleball", "Davao City, PH", "inactive", at(11), at(2), 4],
-    ["nicole", "Nicole Garcia", "nicole.garcia@email.com", "staff", "Pickle Hub", "Quezon City, PH", "active", at(0), at(4), 5],
-    ["joshua", "Joshua Lim", "joshua.lim@email.com", "viewer", "Bay Pickleball Club", "Iloilo City, PH", "active", at(0), at(5), 6],
-    ["sarah", "Sarah Villanueva", "sarah.v@email.com", "staff", "Summit Pickleball", "Baguio City, PH", "inactive", at(7), at(6), 7],
-  ].map((item) => ({
-    id: `mock-${item[0]}`,
-    email: String(item[2]),
-    name: String(item[1]),
-    avatarUrl: null,
-    role: item[3] as AdminUserRole,
-    status: item[6] as AdminUserStatus,
-    orgId: `mock-org-${item[9]}`,
-    orgName: String(item[4]),
-    orgLocation: String(item[5]),
-    orgLogoUrl: null,
-    lastActiveAt: String(item[7]),
-    joinedAt: String(item[8]),
-  }));
-
-  return {
-    range: { from: dateKey(from), to: dateKey(to) },
-    totalAvailable: 1248,
-    metrics: [
-      { key: "total", label: "Total Users", value: 1248, change: 72, tone: "cyan" },
-      { key: "active", label: "Active Users", value: 1086, change: 58, detail: "87.0% of total", tone: "green" },
-      { key: "admins", label: "Admins", value: 86, change: 6, detail: "6.9% of total", tone: "purple" },
-      { key: "managers", label: "Managers", value: 243, change: 11, detail: "19.5% of total", tone: "orange" },
-      { key: "inactive", label: "Inactive Users", value: 162, change: -14, detail: "13.0% of total", tone: "red" },
-    ],
-    users,
-    superAdminUserId: users.find((user) => user.role === "super_admin")?.id ?? null,
-    roleAccess: Object.entries(ROLE_ACCESS).map(([role, value]) => ({
-      role: role as PlatformRole,
-      ...value,
-    })),
-    organizations: users.map((user) => ({
-      id: user.orgId,
-      name: user.orgName,
-      location: user.orgLocation,
-    })),
-    notifications: [
-      { id: "n1", title: "New admin added", detail: "Maria Santos joined The Pickle Yard", at: at(0) },
-      { id: "n2", title: "Super admin active", detail: "Jacob Anderson signed in", at: at(0) },
-      { id: "n3", title: "Inactive user flagged", detail: "David Tan has not signed in recently", at: at(2) },
-      { id: "n4", title: "Viewer access granted", detail: "Joshua Lim can inspect Bay Pickleball Club", at: at(5) },
-      { id: "n5", title: "Staff account inactive", detail: "Sarah Villanueva requires review", at: at(7) },
-      { id: "n6", title: "Manager activity", detail: "Kevin Reyes signed in", at: at(1) },
-    ],
-    demo: true,
-  };
-}
-
 export default async function AdminUsers({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const today = endOfDay(new Date());
@@ -201,9 +137,6 @@ export default async function AdminUsers({ searchParams }: { searchParams: Searc
   const authUsers = (authUsersResult.data?.users ?? []) as AuthUser[];
   const members = (membersResult.data ?? []) as MemberRow[];
   const organizations = (organizationsResult.data ?? []) as OrganizationRow[];
-  if (authUsers.length === 0 && members.length === 0) {
-    return <AdminUserList data={mockData(from, to)} />;
-  }
 
   const authUserById = new Map(authUsers.map((user) => [user.id, user]));
   const orgById = new Map(organizations.map((organization) => [organization.id, organization]));

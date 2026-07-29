@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -109,115 +109,6 @@ export type AdminDashboardData = {
   }>;
 };
 
-function mockDashboard(range: AdminDashboardData["range"]): AdminDashboardData {
-  const end = new Date(`${range.to}T17:00:00`);
-  const at = (minutesAgo: number) => new Date(end.getTime() - minutesAgo * 60_000).toISOString();
-  const rangeStart = new Date(`${range.from}T09:00:00`).getTime();
-  const rangeEnd = end.getTime();
-  const rangeDays = Math.max(1, Math.round((rangeEnd - rangeStart) / 86_400_000));
-  const trialStarted = Math.max(8, Math.round((142 * rangeDays) / 30));
-  const mockExpiringToday = Math.max(1, Math.round((4 * rangeDays) / 30));
-  const mockFailedPayments = Math.max(1, Math.round((2 * rangeDays) / 30));
-  const mockPastDueSubscriptions = Math.max(1, Math.round((3 * rangeDays) / 30));
-  const mockExpiringSoon = Math.max(1, Math.round((6 * rangeDays) / 30));
-  const mockInactiveOrganizations = Math.max(1, Math.round((5 * rangeDays) / 30));
-  const mockPromotionsEnding = Math.max(1, Math.round((3 * rangeDays) / 30));
-  const revenueValues = [3850000, 7200000, 11250000, 12400000, 9700000, 16150000];
-  const orgs = [
-    ["ace", "Ace Pickleball Club", "Makati City, PH", "monthly", "active"],
-    ["yard", "The Pickle Yard", "Cebu City, PH", "trial", "active"],
-    ["rally", "Rally Point Pickleball", "Davao City, PH", "trial", "trial"],
-    ["smash", "Smash Pickleball Center", "Taguig City, PH", "monthly", "active"],
-    ["hub", "Pickle Hub", "Quezon City, PH", "trial", "past_due"],
-    ["courtside", "Courtside PH", "Bacolod City, PH", "monthly", "active"],
-  ] as const;
-  const bookingOrgs = [orgs[0], orgs[1], orgs[2], orgs[3], orgs[4], orgs[0]];
-  const statuses = ["confirmed", "confirmed", "pending", "confirmed", "confirmed", "cancelled"];
-  const resources = ["Court 2", "Court 1", "Court 3", "Court 4", "Court 1", "Court 3"];
-  const customers = ["Mark D.", "Jane S.", "Coach M.", "Alex R.", "Chris T.", "Jeff P."];
-
-  return {
-    range,
-    metrics: {
-      organizations: 256,
-      organizationDelta: 18,
-      activeUsers: 1248,
-      usersTotal: 1482,
-      bookings: 3842,
-      bookingChange: 9.8,
-      mrr: 12854000,
-      revenueChange: 12.4,
-      conversion: 17.6,
-      converted: 34,
-    },
-    planDistribution: [
-      { name: "starter", count: 112 },
-      { name: "pro", count: 98 },
-      { name: "business", count: 34 },
-      { name: "enterprise", count: 12 },
-    ],
-    revenueEvents: revenueValues.map((amount, index) => ({
-      date: new Date(rangeStart + ((rangeEnd - rangeStart) * index) / (revenueValues.length - 1)).toISOString(),
-      amount,
-      source: "Demo subscription revenue",
-    })),
-    needsAttention: {
-      total:
-        mockExpiringToday +
-        mockExpiringSoon +
-        mockFailedPayments +
-        mockPastDueSubscriptions +
-        mockInactiveOrganizations +
-        mockPromotionsEnding,
-      trialsExpiringToday: mockExpiringToday,
-      trialsExpiringSoon: mockExpiringSoon,
-      failedPaymentCount: mockFailedPayments,
-      failedPaymentTotal: Math.max(199000, Math.round((398000 * rangeDays) / 30)),
-      pastDueSubscriptions: mockPastDueSubscriptions,
-      inactiveOrganizations: mockInactiveOrganizations,
-      promotionsEnding: mockPromotionsEnding,
-      systemHealthy: true,
-    },
-    trialFunnel: {
-      started: trialStarted,
-      active: Math.round(trialStarted * 0.479),
-      expiring: Math.round(trialStarted * 0.148),
-      converted: Math.round(trialStarted * 0.127),
-      churned: Math.round(trialStarted * 0.042),
-    },
-    recentOrganizations: orgs.map((org, index) => ({
-      id: `mock-${org[0]}`,
-      name: org[1],
-      location: org[2],
-      logoUrl: null,
-      plan: org[3],
-      status: org[4],
-      joinedAt: at(index * 24 * 60 + 30),
-    })),
-    recentBookings: bookingOrgs.map((org, index) => ({
-      id: `mock-booking-${index + 1}`,
-      organization: org[1],
-      resource: resources[index]!,
-      customer: customers[index]!,
-      status: statuses[index]!,
-      startsAt: at(index * 70 + 45),
-    })),
-    activities: [
-      { id: "mock-a1", type: "organization", title: "New organization registered", detail: "Ace Pickleball Club", at: at(2) },
-      { id: "mock-a2", type: "user", title: "New user joined", detail: "john.doe@aceclub.ph", at: at(5) },
-      { id: "mock-a3", type: "payment", title: "Payment received", detail: "₱1,990 from Ace Pickleball Club", at: at(12) },
-      { id: "mock-a4", type: "subscription", title: "Subscription upgraded", detail: "The Pickle Yard to Pro Plan", at: at(18) },
-      { id: "mock-a5", type: "subscription", title: "Trial started", detail: "Rally Point Pickleball", at: at(25) },
-      { id: "mock-a6", type: "booking", title: "Booking confirmed", detail: "Court 2 • The Pickle Yard", at: at(32) },
-      { id: "mock-a7", type: "failed", title: "Payment failed", detail: "₱1,990 from Pickle Hub", at: at(45) },
-      { id: "mock-a8", type: "organization", title: "New organization registered", detail: "Smash Pickleball Center", at: at(60) },
-      { id: "mock-a9", type: "user", title: "User role updated", detail: "Maria Santos is now Admin", at: at(75) },
-      { id: "mock-a10", type: "payment", title: "Payment refunded", detail: "₱990 to Court Central", at: at(90) },
-      { id: "mock-a11", type: "booking", title: "Booking cancelled", detail: "Court 1 • Pickle Hub", at: at(105) },
-    ],
-  };
-}
-
 function money(cents: number) {
   return `₱${Math.round(cents / 100).toLocaleString("en-PH")}`;
 }
@@ -234,11 +125,7 @@ function signed(value: number, suffix = "") {
 }
 
 export function AdminOverview({ data }: { data: AdminDashboardData }) {
-  const populatedData = useMemo(
-    () => data.metrics.organizations > 0 ? data : mockDashboard(data.range),
-    [data],
-  );
-  return <AdminOverviewContent data={populatedData} />;
+  return <AdminOverviewContent data={data} />;
 }
 
 function AdminOverviewContent({ data }: { data: AdminDashboardData }) {

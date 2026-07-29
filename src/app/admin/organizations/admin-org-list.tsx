@@ -292,7 +292,7 @@ export function AdminOrgList({ data }: { data: OrganizationListData }) {
               <Link href="/admin/audit-logs">View all activity <ArrowRight /></Link>
             </div>
           </details>
-          <span className="organizations-admin-avatar" title="Klein Conejos">KC</span>
+          <span className="organizations-admin-avatar" title="Admin">AD</span>
         </div>
       </header>
 
@@ -497,7 +497,7 @@ function CreateOrganization({
         <button className="org-modal-close" type="button" onClick={onClose} aria-label="Close form"><X /></button>
         <h2>Add Organization</h2>
         <p>Create the organization and its initial subscription.</p>
-        <label>Organization name<input name="name" required minLength={2} placeholder="Ace Pickleball Club" /></label>
+        <label>Organization name<input name="name" required minLength={2} placeholder="Organization name" /></label>
         <label>Public slug<input name="slug" placeholder="ace-pickleball-club" pattern="[a-z0-9-]*" /></label>
         <label>Initial plan<select name="plan" defaultValue="trial"><option value="trial">Trial - 14 days free</option><option value="premium">Premium - monthly</option></select></label>
         <div className="org-create-fields">

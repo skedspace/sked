@@ -110,75 +110,6 @@ function makeDailySeries(from: Date, to: Date) {
   }));
 }
 
-function seededMockData(from: Date, to: Date, monthlyPriceCents: number): AdminAnalyticsData {
-  const now = new Date();
-  const days = makeDailySeries(from, to);
-  const series = days.map((point, index) => {
-    const wave = Math.sin(index * 0.85) * 1800;
-    const lift = index * 420;
-    const revenueCents = Math.round(690_000 + wave + lift + (index % 7 === 2 ? 480_000 : 0));
-    return {
-      ...point,
-      revenueCents,
-      previousRevenueCents: Math.max(120_000, Math.round(revenueCents * 0.78 - 95_000)),
-      bookings: 36 + ((index * 7) % 58) + (index % 8 === 4 ? 35 : 0),
-      users: 7 + index * 5 + (index % 5 === 0 ? 18 : 0),
-      organizations: index % 4 === 0 ? 2 : index % 7 === 0 ? 1 : 0,
-    };
-  });
-  const totalRevenue = series.reduce((sum, point) => sum + point.revenueCents, 0);
-  const totalBookings = series.reduce((sum, point) => sum + point.bookings, 0);
-  const newUsers = series.reduce((sum, point) => sum + point.users, 0);
-  const newOrganizations = series.reduce((sum, point) => sum + point.organizations, 0);
-  const previousRevenue = series.reduce((sum, point) => sum + point.previousRevenueCents, 0);
-  const mrc = monthlyPriceCents * 198;
-  return {
-    range: { from: dateKey(from), to: dateKey(to) },
-    metrics: [
-      { key: "revenue", label: "Total Revenue", value: totalRevenue, previousValue: previousRevenue, kind: "money", tone: "cyan" },
-      { key: "organizations", label: "New Organizations", value: newOrganizations || 28, previousValue: 24, kind: "number", tone: "green" },
-      { key: "users", label: "New Users", value: newUsers, previousValue: Math.round(newUsers * 0.84), kind: "number", tone: "purple" },
-      { key: "bookings", label: "Total Bookings", value: totalBookings, previousValue: Math.round(totalBookings * 0.81), kind: "number", tone: "orange" },
-      { key: "utilization", label: "Court Utilization", value: 68.4, previousValue: 63.5, kind: "percent", tone: "cyan" },
-    ],
-    revenueSeries: series,
-    bookingsSeries: series.map(({ date, bookings }) => ({ date, value: bookings })),
-    userGrowthSeries: series.map(({ date }, index) => ({
-      date,
-      value: series.slice(0, index + 1).reduce((sum, item) => sum + item.users, 0),
-    })),
-    mrc: {
-      totalCents: mrc,
-      previousCents: Math.round(mrc * 0.83),
-      rows: [
-        { label: "Premium Monthly", valueCents: Math.round(mrc * 0.795), percent: 79.5, color: "#11dce4" },
-        { label: "Free Trial (Converted)", valueCents: Math.round(mrc * 0.143), percent: 14.3, color: "#65b82e" },
-        { label: "Annual Plans", valueCents: Math.round(mrc * 0.052), percent: 5.2, color: "#8d55d8" },
-        { label: "Other", valueCents: Math.round(mrc * 0.01), percent: 1.0, color: "#ff9517" },
-      ],
-    },
-    revenueByPlan: [
-      { label: "Premium Monthly", valueCents: Math.round(totalRevenue * 0.598), percent: 59.8, color: "#11dce4" },
-      { label: "Free Trial (Converted)", valueCents: Math.round(totalRevenue * 0.264), percent: 26.4, color: "#65b82e" },
-      { label: "Annual Plans", valueCents: Math.round(totalRevenue * 0.104), percent: 10.4, color: "#8d55d8" },
-      { label: "Other", valueCents: Math.round(totalRevenue * 0.034), percent: 3.4, color: "#ff9517" },
-    ],
-    insights: buildInsights(series, totalRevenue, previousRevenue, totalBookings, newOrganizations || 28, 68.4),
-    notifications: [
-      { id: "mock-revenue", title: "Revenue is trending up", detail: "Current period is outperforming the previous period.", at: to.toISOString(), tone: "success" },
-      { id: "mock-bookings", title: "Peak booking volume", detail: "Evening court demand is strongest this period.", at: new Date(to.getTime() - DAY).toISOString(), tone: "info" },
-      { id: "mock-plan", title: "Annual plan opportunity", detail: "Show annual savings to premium prospects.", at: new Date(to.getTime() - 2 * DAY).toISOString(), tone: "warning" },
-      { id: "mock-users", title: "User growth active", detail: `${newUsers.toLocaleString()} new users in the selected range.`, at: new Date(to.getTime() - 3 * DAY).toISOString(), tone: "info" },
-      { id: "mock-utilization", title: "Utilization target", detail: "Court utilization is nearing the 70% goal.", at: new Date(to.getTime() - 4 * DAY).toISOString(), tone: "success" },
-      { id: "mock-report", title: "Report ready", detail: "Analytics export is available for this period.", at: new Date(to.getTime() - 5 * DAY).toISOString(), tone: "info" },
-    ].map((notification) => ({
-      ...notification,
-      relativeLabel: relativeLabel(notification.at, now),
-    })) as AdminAnalyticsData["notifications"],
-    demo: true,
-  };
-}
-
 function buildInsights(
   series: AdminAnalyticsData["revenueSeries"],
   currentRevenue: number,
@@ -299,9 +230,6 @@ export default async function AdminAnalyticsPage({ searchParams }: { searchParam
   const previousInvoices = (previousInvoiceResult.data ?? []) as InvoiceRow[];
   const subscriptions = (subscriptionResult.data ?? []) as SubscriptionRow[];
   const resources = (resourceResult.data ?? []) as ResourceRow[];
-
-  const hasLiveData = organizations.length + members.length + bookings.length + payments.length + invoices.length + subscriptions.length + resources.length > 0;
-  if (!hasLiveData) return <AdminAnalytics data={seededMockData(from, to, pricing.monthlyPriceCents)} />;
 
   const subscriptionById = new Map(subscriptions.map((row) => [row.id, row]));
   const subscriptionByOrg = new Map<string, SubscriptionRow>();

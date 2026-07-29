@@ -314,7 +314,7 @@ export function AdminPromotions({ data }: { data: AdminPromotionData }) {
               <Link href="/admin/audit-logs">View all activity <ArrowRight /></Link>
             </div>
           </details>
-          <span className="organizations-admin-avatar" title="Klein Conejos">KC</span>
+          <span className="organizations-admin-avatar" title="Admin">AD</span>
         </div>
       </header>
 
@@ -597,7 +597,7 @@ function PromotionEditor({
       periodLabel: `${startsAt ? formatDate(startsAt) : "-"} - ${expiresAt ? formatDate(expiresAt, true) : "No end"}`,
       periodDetail: expiresAt ? "Scheduled" : "Ongoing",
       createdAt: promotion?.createdAt ?? new Date().toISOString(),
-      createdBy: "Klein Conejos",
+      createdBy: "Current admin",
       badgeLabel,
       badgeClassName: percent && percent >= 30 ? "badge-red" : percent && percent >= 20 ? "badge-blue" : "badge-purple",
       revenueCents: promotion?.revenueCents ?? 0,

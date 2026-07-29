@@ -142,7 +142,7 @@ function toAuditRow(row: AuditDbRow, index: number): AuditLogRow {
   const type = actionType(row.action);
   const resource = resourceName(row.target, row.action);
   const resourceId = stringField(payload, ["resource_id", "target_id", "id", "booking_id", "user_id", "plan_id"], row.target ? `${row.target}_${String(row.id).slice(-6)}` : "-");
-  const actorName = stringField(payload, ["actor_name", "user_name", "name", "customer_name"], row.actor_id === "system" ? "System" : "Klein Conejos");
+  const actorName = stringField(payload, ["actor_name", "user_name", "name", "customer_name"], row.actor_id === "system" ? "System" : `User ${row.actor_id.slice(0, 8)}`);
   const role = stringField(payload, ["actor_role", "role"], row.actor_id === "system" ? "Automated" : index % 3 === 0 ? "Super Admin" : index % 3 === 1 ? "Admin" : "Manager");
   const detail = stringField(payload, ["detail", "message", "description"], `${actionLabel(row.action)}${resource ? ` on ${resource}` : ""}`);
 
@@ -165,48 +165,6 @@ function toAuditRow(row: AuditDbRow, index: number): AuditLogRow {
     detail,
     payload,
   };
-}
-
-function demoRows(from: Date, to: Date): AuditLogRow[] {
-  const now = new Date(Math.min(to.getTime(), Date.now()));
-  const seeds = [
-    ["create_organization", "Organization", "Klein Conejos", "Super Admin", "Created organization", "org_2f8d6e7a"],
-    ["update_plan_settings", "Plan", "Klein Conejos", "Super Admin", "Updated plan settings", "plan_7d4f2c1b"],
-    ["login", "Auth", "Jomar Dela Cruz", "Admin", "User logged in", "-"],
-    ["update_user_role", "User", "Jomar Dela Cruz", "Admin", "Updated user role", "user_9a3b7c2d"],
-    ["create_booking", "Booking", "Maria Santos", "Manager", "Created booking", "booking_4e8a1f9b"],
-    ["update_booking_status", "Booking", "Maria Santos", "Manager", "Updated booking status", "booking_4e8a1f9b"],
-    ["webhook_delivered", "Webhook", "System", "Automated", "Webhook delivered", "wh_1a2b3c4d"],
-    ["webhook_failed", "Webhook", "System", "Automated", "Webhook failed", "wh_1a2b3c4d"],
-    ["delete_user", "User", "Klein Conejos", "Super Admin", "Deleted user", "user_3c8d2a1e"],
-    ["update_integration", "Integration", "Klein Conejos", "Super Admin", "Updated integration", "paymongo"],
-  ];
-  return seeds.map((seed, index) => {
-    const at = new Date(now.getTime() - (index * 42 + 18) * 60_000).toISOString();
-    const status: AuditLogRow["status"] = seed[0]!.includes("failed") || seed[0]!.includes("delete") ? "warning" : "success";
-    return {
-      id: `demo-${index}`,
-      at,
-      dateLabel: shortDateTime(at),
-      relativeLabel: relativeLabel(at, now),
-      actorId: seed[2] === "System" ? "system" : `demo-user-${index}`,
-      actorName: seed[2]!,
-      actorRole: seed[3]!,
-      action: seed[0]!,
-      actionLabel: seed[4]!,
-      actionType: actionType(seed[0]!),
-      resource: seed[1]!,
-      resourceId: seed[5]!,
-      organization: ["Ace Pickleball Club", "The Pickle Yard", "Smash Pickleball Center"][index % 3]!,
-      ipAddress: seed[2] === "System" ? "-" : seededIp(`${seed[2]}-${index}`),
-      status,
-      detail: `${seed[4]} for ${["Ace Pickleball Club", "The Pickle Yard", "Smash Pickleball Center"][index % 3]}.`,
-      payload: { demo: true, resource_id: seed[5] },
-    };
-  }).filter((row) => {
-    const at = new Date(row.at);
-    return at >= from && at <= to;
-  });
 }
 
 function systemSparkline(seed: number) {
@@ -236,8 +194,7 @@ export default async function AdminAuditLogsPage({ searchParams }: { searchParam
     1100,
   );
 
-  const liveRows = ((auditResult.data ?? []) as AuditDbRow[]).map(toAuditRow);
-  const rows = liveRows.length > 0 ? liveRows : demoRows(from, to);
+  const rows = ((auditResult.data ?? []) as AuditDbRow[]).map(toAuditRow);
   const users = Array.from(new Map(rows.map((row) => [row.actorName, { id: row.actorId, name: row.actorName }])).values());
   const resources = Array.from(new Set(rows.map((row) => row.resource))).sort();
   const actions = Array.from(new Set(rows.map((row) => row.actionType))).sort();
@@ -252,7 +209,7 @@ export default async function AdminAuditLogsPage({ searchParams }: { searchParam
   const data: AuditLogData = {
     range: { from: dateKey(from), to: dateKey(to) },
     rows,
-    totalCount: liveRows.length > 0 ? liveRows.length : 245,
+    totalCount: rows.length,
     users,
     actions,
     resources,
@@ -271,7 +228,7 @@ export default async function AdminAuditLogsPage({ searchParams }: { searchParam
       database: "Supabase (v16.2)",
       databaseHealthy: !auditResult.error,
       uptime: !auditResult.error ? 99.98 : 98.72,
-      activeSessions: Math.max(12, users.length + 8),
+      activeSessions: users.length,
       cpuUsage: 24,
       memoryUsage: 48,
       storageUsage: 37,
@@ -281,7 +238,7 @@ export default async function AdminAuditLogsPage({ searchParams }: { searchParam
       nextBackupAt: new Date(Date.now() + DAY).toISOString(),
       sparkline: systemSparkline(rows.length),
     },
-    demo: liveRows.length === 0,
+    demo: false,
   };
 
   return <AdminAuditLogs data={data} />;

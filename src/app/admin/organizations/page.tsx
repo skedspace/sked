@@ -54,62 +54,6 @@ function bookingOrg(payment: { booking: unknown }) {
   return String(booking.org_id);
 }
 
-function mockData(from: Date, to: Date): OrganizationListData {
-  const at = (days: number) => {
-    const value = new Date(to);
-    value.setDate(value.getDate() - days);
-    return value.toISOString();
-  };
-  const rows: OrganizationRow[] = [
-    ["ace", "Ace Pickleball Club", "Makati City, PH", "premium", "active", 34, 3, 128, 12, 2480000, 12.4, null, 0],
-    ["yard", "The Pickle Yard", "Cebu City, PH", "premium", "active", 21, 2, 84, 8, 890000, 8.7, null, 1],
-    ["rally", "Rally Point Pickleball", "Davao City, PH", "trial", "trial", 15, 1, 37, -3, 0, 0, 7, 2],
-    ["smash", "Smash Pickleball Center", "Taguig City, PH", "premium", "active", 48, 6, 156, 14, 3120000, 15.3, null, 3],
-    ["hub", "Pickle Hub", "Quezon City, PH", "premium", "past_due", 12, -2, 23, -5, 0, 0, null, 4],
-    ["courtside", "Courtside PH", "Bacolod City, PH", "premium", "active", 27, 3, 91, 6, 1760000, 10.1, null, 5],
-    ["bay", "Bay Pickleball Club", "Iloilo City, PH", "trial", "trial", 9, 0, 16, -1, 0, 0, 2, 5],
-    ["summit", "Summit Pickleball", "Baguio City, PH", "premium", "churned", 8, 0, 12, -4, 0, 0, null, 6],
-  ].map((item) => ({
-    id: `mock-${item[0]}`,
-    slug: String(item[0]),
-    name: String(item[1]),
-    location: String(item[2]),
-    logoUrl: null,
-    plan: item[3] as OrganizationRow["plan"],
-    status: item[4] as OrganizationRow["status"],
-    users: Number(item[5]),
-    userChange: Number(item[6]),
-    bookings: Number(item[7]),
-    bookingChange: Number(item[8]),
-    revenue: Number(item[9]),
-    revenueChange: Number(item[10]),
-    trialDaysLeft: item[11] == null ? null : Number(item[11]),
-    createdAt: at(Number(item[12])),
-  }));
-
-  return {
-    range: { from: dateKey(from), to: dateKey(to) },
-    totalAvailable: 256,
-    metrics: [
-      { key: "total", label: "Total Organizations", value: 256, change: 18, tone: "cyan" },
-      { key: "active", label: "Active Organizations", value: 198, change: 16, tone: "green" },
-      { key: "premium", label: "Premium Organizations", value: 82, change: 9, tone: "purple" },
-      { key: "trial", label: "Trial Organizations", value: 58, change: -4, tone: "orange" },
-      { key: "churned", label: "Churned Organizations", value: 18, change: 2, tone: "red" },
-    ],
-    organizations: rows,
-    notifications: [
-      { id: "n1", title: "New organization registered", detail: "Ace Pickleball Club", at: at(0) },
-      { id: "n2", title: "Subscription past due", detail: "Pickle Hub requires attention", at: at(0) },
-      { id: "n3", title: "Trial ending soon", detail: "Bay Pickleball Club has 2 days left", at: at(1) },
-      { id: "n4", title: "Organization churned", detail: "Summit Pickleball", at: at(2) },
-      { id: "n5", title: "Revenue milestone", detail: "Smash Pickleball Center reached ₱31,200", at: at(2) },
-      { id: "n6", title: "New members added", detail: "Ace Pickleball Club added 3 users", at: at(3) },
-    ],
-    demo: true,
-  };
-}
-
 export default async function AdminOrganizations({
   searchParams,
 }: {
@@ -177,7 +121,6 @@ export default async function AdminOrganizations({
   ]);
 
   const organizations = orgResult.data ?? [];
-  if (organizations.length === 0) return <AdminOrgList data={mockData(from, to)} />;
 
   const members = memberResult.data ?? [];
   const locations = locationResult.data ?? [];

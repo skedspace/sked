@@ -140,68 +140,6 @@ function codeBadge(row: DiscountRow) {
   return { label: `${value}%\nOFF`, className: "badge-purple" };
 }
 
-function mockData(from: Date, to: Date): AdminPromotionData {
-  const now = new Date();
-  const orgs = [
-    { id: "mock-ace", name: "Ace Pickleball Club" },
-    { id: "mock-yard", name: "The Pickle Yard" },
-    { id: "mock-rally", name: "Rally Point Pickleball" },
-  ];
-  const rows: AdminPromotionRow[] = [
-    ["welcome", "Welcome 20% Off", "For new organizations", "percentage", "WELCOME20", 20, null, 1000, 342, 0, 20000, -59, 31, true, orgs[0]!.id],
-    ["month", "First Month Free", "New organizations only", "free_trial", "FREEMONTH", 100, null, 500, 187, 0, null, -45, 46, true, orgs[1]!.id],
-    ["annual", "Annual Plan 15% Off", "Annual subscription only", "percentage", "ANNUAL15", 15, null, 300, 96, 0, null, -100, -1, true, orgs[2]!.id],
-    ["summer", "Summer Special", "Limited time offer", "percentage", "SUMMER10", 10, null, 800, 276, 0, 15000, 1, 32, true, orgs[0]!.id],
-    ["refer", "Refer a Friend", "For successful referrals", "fixed", "REFER5", null, 5000, 2000, 221, 0, null, -149, 195, true, orgs[1]!.id],
-    ["flash", "Flash Sale 30% Off", "Limited time flash sale", "percentage", "FLASH30", 30, null, 120, 120, 0, 30000, -79, -69, true, orgs[2]!.id],
-    ["first", "Half Off First Booking", "For first booking only", "percentage", "FIRSTBOOK50", 50, null, 200, 6, 0, 25000, 0, null, false, orgs[0]!.id],
-  ].map((item) => {
-    const startsAt = new Date(now.getTime() + Number(item[11]) * DAY).toISOString();
-    const expiresAt = item[12] == null ? null : new Date(now.getTime() + Number(item[12]) * DAY).toISOString();
-    const source: DiscountRow = {
-      id: String(item[0]),
-      org_id: String(item[15]),
-      code: String(item[4]),
-      type: item[3] === "fixed" ? "fixed" : "percentage",
-      value_percent: item[5] == null ? null : Number(item[5]),
-      value_cents: item[6] == null ? null : Number(item[6]),
-      max_uses: Number(item[7]),
-      current_uses: Number(item[8]),
-      min_cents: Number(item[9]),
-      max_discount_cents: item[10] == null ? null : Number(item[10]),
-      starts_at: startsAt,
-      expires_at: expiresAt,
-      is_active: Boolean(item[13]),
-      description: String(item[2]),
-      created_at: new Date(now.getTime() - 60 * DAY).toISOString(),
-    };
-    return toPromotionRow(source, orgs.find((org) => org.id === source.org_id)?.name ?? "All organizations", now);
-  });
-  const redemptions = rows.reduce((sum, row) => sum + row.currentUses, 0);
-  const revenue = 31_245_000;
-  return {
-    range: { from: dateKey(from), to: dateKey(to) },
-    metrics: [
-      { key: "total", label: "Total Promotions", value: 12, previousValue: 10, kind: "number", tone: "cyan" },
-      { key: "redemptions", label: "Redemptions", value: redemptions, previousValue: 1052, kind: "number", tone: "green" },
-      { key: "conversion", label: "Conversion Rate", value: 22.4, previousValue: 21.1, kind: "percent", tone: "purple" },
-      { key: "discount", label: "Discount Given", value: 4_876_000, previousValue: 4_268_000, kind: "money", tone: "orange" },
-      { key: "revenue", label: "Revenue Generated", value: revenue, previousValue: 25_672_000, kind: "money", tone: "cyan" },
-    ],
-    promotions: rows,
-    organizations: orgs,
-    notifications: rows.slice(0, 6).map((row) => ({
-      id: `mock-${row.id}`,
-      title: row.status === "expired" ? "Promotion expired" : row.status === "scheduled" ? "Promotion scheduled" : "Promotion active",
-      detail: `${row.name} - ${row.code}`,
-      at: row.createdAt,
-      relativeLabel: relativeLabel(row.createdAt, now),
-      tone: row.status === "expired" ? "danger" : row.status === "scheduled" ? "info" : "success",
-    })),
-    demo: true,
-  };
-}
-
 function toPromotionRow(row: DiscountRow, orgName: string, now = new Date()): AdminPromotionRow {
   const status = promotionStatus(row, now);
   const period = daysText(row, now);
@@ -236,7 +174,7 @@ function toPromotionRow(row: DiscountRow, orgName: string, now = new Date()): Ad
     periodLabel: period.range,
     periodDetail: period.detail,
     createdAt: row.created_at,
-    createdBy: "Klein Conejos",
+    createdBy: "Current admin",
     badgeLabel: badge.label,
     badgeClassName: badge.className,
     revenueCents,
@@ -270,7 +208,6 @@ export default async function AdminPromotionsPage({ searchParams }: { searchPara
 
   const discounts = (discountResult.data ?? []) as DiscountRow[];
   const organizations = ((orgResult.data ?? []) as OrganizationRow[]).filter((org) => !org.deleted_at);
-  if (discounts.length === 0 && organizations.length === 0) return <AdminPromotions data={mockData(from, to)} />;
 
   const orgById = new Map(organizations.map((org) => [org.id, org]));
   const rows = discounts.map((row) => toPromotionRow(row, orgById.get(row.org_id)?.name ?? "Unknown organization", now));
