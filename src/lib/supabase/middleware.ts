@@ -1,13 +1,46 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { type NextRequest, NextResponse } from "next/server";
 import type { Database } from "@/lib/database.types";
+
+type CookieToSet = {
+  name: string;
+  value: string;
+  options: CookieOptions;
+};
 
 /**
  * Creates a Supabase client for use in middleware (Edge Runtime compatible).
- * Does not rely on cookie-based session management.
+ * Keeps auth cookies in sync so server-rendered routes can see OAuth/email
+ * sessions immediately after Supabase redirects back to the app.
  */
-export function createMiddlewareClient() {
-  return createSupabaseClient<Database>(
+export function createMiddlewareClient(request: NextRequest) {
+  let response = NextResponse.next({ request });
+
+  const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet: CookieToSet[]) {
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value);
+          });
+
+          response = NextResponse.next({ request });
+
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    },
   );
+
+  return {
+    supabase,
+    getResponse: () => response,
+  };
 }

@@ -13,19 +13,23 @@ export async function middleware(request: NextRequest) {
   }
 
   // Check session for protected routes
-  const supabase = createMiddlewareClient();
+  const { supabase, getResponse } = createMiddlewareClient(request);
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
   // Redirect to login if not authenticated
-  if (!session && pathname.startsWith("/dashboard")) {
+  if (!user && pathname.startsWith("/dashboard")) {
     const redirectUrl = new URL("/login", request.url);
     redirectUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(redirectUrl);
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    getResponse().cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie);
+    });
+    return redirectResponse;
   }
 
-  return NextResponse.next();
+  return getResponse();
 }
 
 export const config = {
