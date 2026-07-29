@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { OrgSetupForm } from "./org-setup-form";
 import { isDevAuthEnabled } from "@/lib/dev-auth";
+import { OnboardingShell } from "@/components/shared/onboarding-shell";
 
 export default async function OnboardingPage({
   searchParams,
@@ -10,7 +10,8 @@ export default async function OnboardingPage({
   searchParams: Promise<{ plan?: string; billing?: string; term?: string }>;
 }) {
   const selection = await searchParams;
-  const termMonths = selection.plan === "premium" ? Number(selection.term ?? 1) : null;
+  const termMonths =
+    selection.plan === "premium" ? Number(selection.term ?? 1) : null;
   const supabase = createClient();
   const {
     data: { session },
@@ -35,19 +36,12 @@ export default async function OnboardingPage({
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8">
-      <div className="w-full max-w-lg">
-        <h1 className="mb-2 text-2xl font-bold">Set up your business</h1>
-        <p className="mb-8 text-muted-foreground">
-          Create your public page in under 10 minutes.
-        </p>
-        <OrgSetupForm userId={session.user.id} termMonths={termMonths} />
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          <Link href="/dashboard" className="text-primary hover:underline">
-            I&apos;ll do this later
-          </Link>
-        </p>
-      </div>
-    </main>
+    <OnboardingShell
+      currentStep={2}
+      title="Set up your business"
+      description="Choose your name and booking page."
+    >
+      <OrgSetupForm termMonths={termMonths} />
+    </OnboardingShell>
   );
 }
