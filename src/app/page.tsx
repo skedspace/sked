@@ -20,6 +20,7 @@ import type { Plan, PlanId } from "@/lib/plans";
 import { readPlatformPricingConfig } from "@/lib/pricing-config";
 import { AnnualSavingsModal } from "@/app/pricing/annual-savings-modal";
 import { TestimonialsColumn } from "@/components/ui/testimonials-columns-1";
+import { BookingRally } from "@/components/marketing/booking-rally";
 
 export const dynamic = "force-dynamic";
 
@@ -555,72 +556,7 @@ function MarketingHero() {
           </div>
         </div>
 
-        <div className="relative min-h-[520px] lg:min-h-[640px]">
-          <div className="absolute top-12 right-4 hidden w-[min(15rem,75vw)] rounded-2xl border border-white/20 bg-white/[0.08] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.32)] backdrop-blur-2xl lg:block">
-            <div className="flex items-center gap-3">
-              <CalendarDays className="h-6 w-6 text-[#b9f34b]" />
-              <p className="text-sm font-semibold text-white/88">
-                Courts booked today
-              </p>
-            </div>
-            <div className="mt-3 flex items-end justify-between gap-3">
-              <div>
-                <p className="text-2xl font-black tracking-[-0.05em]">76%</p>
-                <p className="mt-1 text-xs text-white/78">vs yesterday</p>
-              </div>
-              <svg
-                className="h-8 w-20 text-[#b9f34b]"
-                viewBox="0 0 150 70"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="M4 62C18 56 26 48 39 50C53 52 57 41 71 43C86 45 90 54 103 48C116 42 121 27 133 23C139 21 143 14 146 9"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeWidth="4"
-                />
-              </svg>
-            </div>
-          </div>
-
-          <div className="absolute top-1/2 right-4 hidden w-[min(15rem,75vw)] -translate-y-1/2 rounded-2xl border border-white/20 bg-white/[0.08] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.32)] backdrop-blur-2xl lg:block">
-            <div className="flex items-center gap-3">
-              <Users className="h-6 w-6 text-[#b9f34b]" />
-              <p className="text-sm font-semibold text-white/88">
-                Upcoming match
-              </p>
-            </div>
-            <p className="mt-3 text-base font-semibold tracking-[-0.03em]">
-              Doubles Clash
-            </p>
-            <p className="mt-1 text-sm text-white/78">Sat, May 24 - 8:00 AM</p>
-            <div className="mt-3 flex items-center">
-              {["AR", "ML", "CP"].map((person) => (
-                <span
-                  key={person}
-                  className="-mr-2 grid h-8 w-8 place-items-center rounded-full border-2 border-white/70 bg-[#b9f34b] text-[10px] font-black text-[#071004]"
-                >
-                  {person}
-                </span>
-              ))}
-              <span className="grid h-8 w-8 place-items-center rounded-full border border-white/25 bg-white/14 text-xs font-bold text-white">
-                +6
-              </span>
-            </div>
-          </div>
-
-          <div className="absolute right-4 bottom-16 hidden w-[min(15rem,75vw)] rounded-2xl border border-white/20 bg-white/[0.08] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.32)] backdrop-blur-2xl lg:block">
-            <div className="flex items-center gap-3">
-              <CalendarCheck className="h-6 w-6 text-[#b9f34b]" />
-              <div>
-                <p className="text-xs text-white/78">New booking</p>
-                <p className="mt-0.5 text-sm font-semibold">Court 3</p>
-                <p className="mt-0.5 text-xs text-white/78">May 24 - 7:00 AM</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <BookingRally />
       </div>
 
       <div className="trusted-marquee border-t border-white/10 bg-black/32 py-6 backdrop-blur-md lg:absolute lg:inset-x-0 lg:bottom-0">
