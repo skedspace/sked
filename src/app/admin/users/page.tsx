@@ -1,5 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isPlatformRole, ROLE_ACCESS, type PlatformRole } from "@/lib/admin-access";
+import {
+  isPlatformRole,
+  platformRoleFromUser,
+  ROLE_ACCESS,
+  type PlatformRole,
+} from "@/lib/admin-access";
 import {
   AdminUserList,
   type AdminUserListData,
@@ -74,6 +79,11 @@ function text(value: unknown) {
 }
 
 function platformRole(user: AuthUser | undefined, member: MemberRow | undefined): AdminUserRole {
+  const platformRole = platformRoleFromUser(
+    user ? { email: user.email, app_metadata: user.app_metadata ?? {} } : null,
+  );
+  if (platformRole) return platformRole;
+
   const saved = text(user?.app_metadata?.platform_role);
   if (isPlatformRole(saved)) {
     return saved;
