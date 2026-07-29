@@ -1,14 +1,15 @@
-import { cn } from "@/lib/utils"
+import type { CSSProperties } from "react";
+import { cn } from "@/lib/utils";
 
 interface BorderBeamProps {
-  className?: string
-  size?: number
-  duration?: number
-  borderWidth?: number
-  anchor?: number
-  colorFrom?: string
-  colorTo?: string
-  delay?: number
+  className?: string;
+  size?: number;
+  duration?: number;
+  borderWidth?: number;
+  anchor?: number;
+  colorFrom?: string;
+  colorTo?: string;
+  delay?: number;
 }
 
 export const BorderBeam = ({
@@ -32,18 +33,15 @@ export const BorderBeam = ({
           "--color-from": colorFrom,
           "--color-to": colorTo,
           "--delay": `-${delay}s`,
-        } as React.CSSProperties
+        } as CSSProperties
       }
       className={cn(
-        "pointer-events-none absolute inset-0 rounded-[inherit] [border:calc(var(--border-width)*1px)_solid_transparent]",
-
-        // mask styles
-        "![mask-clip:padding-box,border-box] ![mask-composite:intersect] [mask:linear-gradient(transparent,transparent),linear-gradient(white,white)]",
-
-        // pseudo styles
-        "after:absolute after:aspect-square after:w-[calc(var(--size)*1px)] after:animate-border-beam after:[animation-delay:var(--delay)] after:[background:linear-gradient(to_left,var(--color-from),var(--color-to),transparent)] after:[offset-anchor:calc(var(--anchor)*1%)_50%] after:[offset-path:rect(0_auto_auto_0_round_calc(var(--size)*1px))]",
+        "pointer-events-none absolute inset-0 rounded-[inherit]",
+        "after:absolute after:inset-0 after:rounded-[inherit] after:p-[calc(var(--border-width)*1px)] after:content-['']",
+        "after:[background-image:conic-gradient(from_var(--shine-angle),color-mix(in_srgb,var(--color-from)_18%,transparent)_0deg,color-mix(in_srgb,var(--color-from)_18%,transparent)_250deg,var(--color-from)_292deg,var(--color-to)_322deg,color-mix(in_srgb,var(--color-from)_18%,transparent)_360deg)] after:[--shine-angle:0deg] after:[animation-delay:var(--delay)]",
+        "after:![mask-composite:exclude] after:![-webkit-mask-composite:xor] after:[-webkit-mask:linear-gradient(#fff_0_0)_content-box,linear-gradient(#fff_0_0)] after:[mask:linear-gradient(#fff_0_0)_content-box,linear-gradient(#fff_0_0)] motion-safe:after:animate-[shine-orbit_calc(var(--duration)*1s)_infinite_linear]",
         className,
       )}
     />
-  )
-}
+  );
+};
