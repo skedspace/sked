@@ -1,6 +1,8 @@
--- Keep the platform Super Admin role unique even if auth metadata is changed
--- outside the application UI.
-CREATE UNIQUE INDEX IF NOT EXISTS one_platform_super_admin
-ON auth.users ((raw_app_meta_data ->> 'platform_role'))
-WHERE raw_app_meta_data ->> 'platform_role' = 'super_admin';
+-- Migration: 00037_enforce_single_super_admin.sql
+-- Supabase-managed auth.users cannot be safely indexed from project migrations.
+-- The single Super Admin invariant is enforced in admin user server actions.
 
+DO $$
+BEGIN
+    RAISE NOTICE 'Single Super Admin is enforced by application server actions.';
+END $$;
