@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { PostHogProvider } from "@/components/shared/posthog-provider";
 import { CookieConsent } from "@/components/shared/cookie-consent";
 import { ServiceWorkerRegister } from "@/components/shared/service-worker-register";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: {
@@ -31,6 +32,7 @@ export default function RootLayout({
             <ServiceWorkerRegister />
           </PostHogProvider>
         </TooltipProvider>
+        <Analytics />
       </body>
     </html>
   );
