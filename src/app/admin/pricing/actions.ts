@@ -40,6 +40,7 @@ export async function updatePricingSettingsAction(payload: PlatformPricingConfig
   revalidatePath("/admin");
   revalidatePath("/admin/pricing");
   revalidatePath("/admin/subscriptions");
+  revalidatePath("/");
   revalidatePath("/pricing");
 
   return result.persisted

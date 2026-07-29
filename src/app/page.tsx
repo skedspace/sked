@@ -21,6 +21,8 @@ import { readPlatformPricingConfig } from "@/lib/pricing-config";
 import { AnnualSavingsModal } from "@/app/pricing/annual-savings-modal";
 import { TestimonialsColumn } from "@/components/ui/testimonials-columns-1";
 
+export const dynamic = "force-dynamic";
+
 const features = [
   {
     icon: Globe2,
@@ -483,9 +485,9 @@ function MarketingHero() {
           <a href="#blog" className="hover:text-[#b9f34b]">
             Resources
           </a>
-          <Link href="/pricing" className="hover:text-[#b9f34b]">
+          <a href="#pricing" className="hover:text-[#b9f34b]">
             Pricing
-          </Link>
+          </a>
         </div>
         <div className="flex items-center gap-4">
           <Link
@@ -684,12 +686,12 @@ export default async function HomePage() {
             >
               How it works
             </a>
-            <Link
-              href="/pricing"
+            <a
+              href="#pricing"
               className="text-muted-foreground hover:text-foreground rounded-full px-4 py-2 text-sm font-medium transition-colors hover:bg-black/[0.05]"
             >
               Pricing
-            </Link>
+            </a>
             <a
               href="#blog"
               className="text-muted-foreground hover:text-foreground hidden rounded-full px-4 py-2 text-sm font-medium transition-colors hover:bg-black/[0.05] md:inline-flex"
