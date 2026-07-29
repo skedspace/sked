@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useId, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarCheck2,
@@ -9,10 +9,12 @@ import {
   ExternalLink,
   Eye,
   Globe2,
+  HelpCircle,
   Image,
   Info,
   LayoutPanelTop,
   Mail,
+  Megaphone,
   MoreHorizontal,
   Palette,
   Plus,
@@ -26,11 +28,17 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PagePreview, type PublicPageSections } from "./page-preview";
+import {
+  PUBLIC_PAGE_THEMES,
+  readPublicPageSections,
+  type FaqItem,
+  type PublicPageSections,
+} from "@/lib/public-page";
+import { PagePreview } from "./page-preview";
 
 type Page = {
   theme: string;
-  sections: unknown[];
+  sections: unknown;
   cover_url: string | null;
   logo_url: string | null;
   bio: string | null;
@@ -43,39 +51,7 @@ type WorkspaceView = "storefront" | "booking";
 type StorefrontSectionId = keyof PublicPageSections["storefront"];
 type BookingSectionId = keyof PublicPageSections["booking"];
 
-type ThemeOption = {
-  id: string;
-  label: string;
-  description: string;
-  colors: string[];
-};
-
-const THEMES: ThemeOption[] = [
-  {
-    id: "default",
-    label: "Modern Sport",
-    description: "Crisp white surfaces with energetic lime actions.",
-    colors: ["#72c914", "#07112b", "#f3f5ec", "#d9d9d6"],
-  },
-  {
-    id: "warm",
-    label: "Sunset Club",
-    description: "Warm courtside tones for lifestyle-led venues.",
-    colors: ["#f59e0b", "#3d2b1f", "#fff3df", "#e0d3c2"],
-  },
-  {
-    id: "cool",
-    label: "Coastal Play",
-    description: "Fresh teal accents with clean booking cards.",
-    colors: ["#14b8a6", "#103f4a", "#e8faf7", "#c8d7d5"],
-  },
-  {
-    id: "dark",
-    label: "Night Match",
-    description: "High-contrast preview for evening and premium clubs.",
-    colors: ["#eab308", "#1c1917", "#34302c", "#d6d3d1"],
-  },
-];
+const THEMES = PUBLIC_PAGE_THEMES;
 
 const STOREFRONT_ITEMS: Array<{
   id: StorefrontSectionId;
@@ -114,10 +90,22 @@ const STOREFRONT_ITEMS: Array<{
     icon: Image,
   },
   {
+    id: "promo",
+    label: "Promo Banner",
+    detail: "Special offer or announcement block",
+    icon: Megaphone,
+  },
+  {
     id: "testimonials",
     label: "Testimonials",
     detail: "Customer quotes and social proof",
     icon: UsersRound,
+  },
+  {
+    id: "faq",
+    label: "FAQ",
+    detail: "Common booking questions",
+    icon: HelpCircle,
   },
   {
     id: "contact",
@@ -158,6 +146,12 @@ const BOOKING_ITEMS: Array<{
     icon: Globe2,
   },
   {
+    id: "policy",
+    label: "Policies",
+    detail: "Cancellation, arrival and venue notes",
+    icon: Info,
+  },
+  {
     id: "confirmation",
     label: "Confirmation",
     detail: "Success message after booking",
@@ -165,177 +159,12 @@ const BOOKING_ITEMS: Array<{
   },
 ];
 
-export const DEFAULT_PAGE_SECTIONS: PublicPageSections = {
-  storefront: {
-    hero: {
-      enabled: true,
-      headline: "Play More. Wait Less.",
-      subheadline:
-        "Premium courts, easy booking, and more time for what matters.",
-      primaryCta: "Book Your Court",
-      secondaryCta: "View Courts",
-      coverUrl: "",
-      logoUrl: "",
-    },
-    about: {
-      enabled: true,
-      title: "Built for Great Games",
-      body: "Well-maintained courts designed for players of all levels.",
-    },
-    amenities: {
-      enabled: true,
-      title: "Everything players need",
-      items: [
-        "Top quality courts",
-        "Night play",
-        "Free parking",
-        "Amenities",
-      ],
-    },
-    courts: {
-      enabled: true,
-      title: "Our Courts",
-      intro: "Choose a court that fits your match, then reserve in seconds.",
-    },
-    gallery: {
-      enabled: true,
-      title: "Gallery",
-      photos: [],
-    },
-    testimonials: {
-      enabled: true,
-      title: "Loved by Players",
-      quotes: [
-        "Super easy to book and the courts are always in perfect condition!",
-        "Love the vibes here. Great spot for weekend games with friends.",
-        "Clean courts, great staff, and zero hassle booking. Highly recommend!",
-      ],
-    },
-    contact: {
-      enabled: true,
-      address: "123 Pickleball Lane",
-      city: "Makati City, PH",
-      hours: "Open Daily, 6:00 AM - 11:00 PM",
-      phone: "+63 912 345 6789",
-      email: "hello@acepickleball.ph",
-    },
-  },
-  booking: {
-    service: {
-      enabled: true,
-      title: "Book your court",
-      helper: "Choose your court or coaching option.",
-    },
-    dateTime: {
-      enabled: true,
-      title: "Find available courts",
-      helper: "Pick a date and reserve an open slot.",
-    },
-    customer: {
-      enabled: true,
-      title: "Your details",
-      helper: "Collect customer name, email and phone before confirmation.",
-    },
-    payment: {
-      enabled: true,
-      title: "Secure your slot",
-      helper: "Show price, deposit requirement and payment instructions.",
-    },
-    confirmation: {
-      enabled: true,
-      title: "Booking confirmed",
-      helper: "Customers receive confirmation details instantly.",
-    },
-  },
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
 function mergeSections(value: unknown, page: Page): PublicPageSections {
-  const raw = Array.isArray(value) ? value[0] : value;
-  const saved = isRecord(raw) ? raw : {};
-  const storefront = isRecord(saved.storefront) ? saved.storefront : {};
-  const booking = isRecord(saved.booking) ? saved.booking : {};
-  const savedHero = isRecord(storefront.hero) ? storefront.hero : {};
-  const savedAmenities = isRecord(storefront.amenities)
-    ? storefront.amenities
-    : {};
-  const savedGallery = isRecord(storefront.gallery) ? storefront.gallery : {};
-  const savedTestimonials = isRecord(storefront.testimonials)
-    ? storefront.testimonials
-    : {};
-
-  return {
-    storefront: {
-      hero: {
-        ...DEFAULT_PAGE_SECTIONS.storefront.hero,
-        ...savedHero,
-        subheadline:
-          String(savedHero.subheadline ?? "") ||
-          page?.bio ||
-          DEFAULT_PAGE_SECTIONS.storefront.hero.subheadline,
-        coverUrl: String(savedHero.coverUrl ?? "") || page?.cover_url || "",
-        logoUrl: String(savedHero.logoUrl ?? "") || page?.logo_url || "",
-      },
-      about: {
-        ...DEFAULT_PAGE_SECTIONS.storefront.about,
-        ...(isRecord(storefront.about) ? storefront.about : {}),
-      },
-      amenities: {
-        ...DEFAULT_PAGE_SECTIONS.storefront.amenities,
-        ...savedAmenities,
-        items: Array.isArray(savedAmenities.items)
-          ? (savedAmenities.items as string[])
-          : DEFAULT_PAGE_SECTIONS.storefront.amenities.items,
-      },
-      courts: {
-        ...DEFAULT_PAGE_SECTIONS.storefront.courts,
-        ...(isRecord(storefront.courts) ? storefront.courts : {}),
-      },
-      gallery: {
-        ...DEFAULT_PAGE_SECTIONS.storefront.gallery,
-        ...savedGallery,
-        photos: Array.isArray(savedGallery.photos)
-          ? (savedGallery.photos as string[])
-          : DEFAULT_PAGE_SECTIONS.storefront.gallery.photos,
-      },
-      testimonials: {
-        ...DEFAULT_PAGE_SECTIONS.storefront.testimonials,
-        ...savedTestimonials,
-        quotes: Array.isArray(savedTestimonials.quotes)
-          ? (savedTestimonials.quotes as string[])
-          : DEFAULT_PAGE_SECTIONS.storefront.testimonials.quotes,
-      },
-      contact: {
-        ...DEFAULT_PAGE_SECTIONS.storefront.contact,
-        ...(isRecord(storefront.contact) ? storefront.contact : {}),
-      },
-    },
-    booking: {
-      service: {
-        ...DEFAULT_PAGE_SECTIONS.booking.service,
-        ...(isRecord(booking.service) ? booking.service : {}),
-      },
-      dateTime: {
-        ...DEFAULT_PAGE_SECTIONS.booking.dateTime,
-        ...(isRecord(booking.dateTime) ? booking.dateTime : {}),
-      },
-      customer: {
-        ...DEFAULT_PAGE_SECTIONS.booking.customer,
-        ...(isRecord(booking.customer) ? booking.customer : {}),
-      },
-      payment: {
-        ...DEFAULT_PAGE_SECTIONS.booking.payment,
-        ...(isRecord(booking.payment) ? booking.payment : {}),
-      },
-      confirmation: {
-        ...DEFAULT_PAGE_SECTIONS.booking.confirmation,
-        ...(isRecord(booking.confirmation) ? booking.confirmation : {}),
-      },
-    },
-  };
+  return readPublicPageSections(value, {
+    bio: page?.bio,
+    coverUrl: page?.cover_url,
+    logoUrl: page?.logo_url,
+  });
 }
 
 export function PageEditor({
@@ -343,16 +172,31 @@ export function PageEditor({
   page,
   slug,
   orgName,
+  orgLogoUrl,
 }: {
   orgId: string;
   page: Page;
   slug: string;
   orgName: string;
+  orgLogoUrl: string | null;
 }) {
   const socials = page?.socials ?? {};
   const initialSections = useMemo(
-    () => mergeSections(page?.sections, page),
-    [page],
+    () => {
+      const merged = mergeSections(page?.sections, page);
+      return {
+        ...merged,
+        storefront: {
+          ...merged.storefront,
+          hero: {
+            ...merged.storefront.hero,
+            brandName: merged.storefront.hero.brandName || orgName,
+            logoUrl: merged.storefront.hero.logoUrl || orgLogoUrl || "",
+          },
+        },
+      };
+    },
+    [orgLogoUrl, orgName, page],
   );
   const [sections, setSections] = useState<PublicPageSections>(initialSections);
   const [facebook, setFacebook] = useState(socials.facebook ?? "");
@@ -372,6 +216,7 @@ export function PageEditor({
   const [tab, setTab] = useState<"content" | "design">("content");
   const [workspaceView, setWorkspaceView] =
     useState<WorkspaceView>("storefront");
+  const [showSectionLibrary, setShowSectionLibrary] = useState(false);
   const [activeStorefront, setActiveStorefront] =
     useState<StorefrontSectionId>("hero");
   const [activeBooking, setActiveBooking] =
@@ -435,7 +280,19 @@ export function PageEditor({
       if (!error && customSlug !== slug) {
         await db
           .from("organizations")
-          .update({ slug: customSlug })
+          .update({
+            slug: customSlug,
+            name: sections.storefront.hero.brandName || orgName,
+            logo_url: sections.storefront.hero.logoUrl || null,
+          })
+          .eq("id", orgId);
+      } else if (!error) {
+        await db
+          .from("organizations")
+          .update({
+            name: sections.storefront.hero.brandName || orgName,
+            logo_url: sections.storefront.hero.logoUrl || null,
+          })
           .eq("id", orgId);
       }
 
@@ -443,6 +300,22 @@ export function PageEditor({
       if (error) {
         setSaveError(error.message);
         return;
+      }
+
+      if (process.env.NODE_ENV !== "production") {
+        await fetch("/api/dev/public-page-preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...payload,
+            org_id: orgId,
+            org_name: sections.storefront.hero.brandName || orgName,
+            org_slug: customSlug || slug,
+            is_published: isPublished,
+            primary_color: primaryColor,
+            plan: "trial",
+          }),
+        });
       }
 
       setSaved(true);
@@ -508,6 +381,29 @@ export function PageEditor({
       },
     }));
   }
+
+  function addStorefrontSection(id: StorefrontSectionId) {
+    updateStorefront(id, { enabled: true } as never);
+    setActiveStorefront(id);
+    setWorkspaceView("storefront");
+    setShowSectionLibrary(false);
+  }
+
+  function addBookingSection(id: BookingSectionId) {
+    updateBooking(id, { enabled: true } as never);
+    setActiveBooking(id);
+    setWorkspaceView("booking");
+    setShowSectionLibrary(false);
+  }
+
+  const hiddenStorefrontItems = STOREFRONT_ITEMS.filter(
+    (item) => !sections.storefront[item.id].enabled,
+  );
+  const hiddenBookingItems = BOOKING_ITEMS.filter(
+    (item) => !sections.booking[item.id].enabled,
+  );
+  const hiddenItems =
+    workspaceView === "storefront" ? hiddenStorefrontItems : hiddenBookingItems;
 
   return (
     <form className="space-y-5" onSubmit={handleSave}>
@@ -673,10 +569,63 @@ export function PageEditor({
               type="button"
               variant="outline"
               className="h-12 w-full bg-white"
+              onClick={() => setShowSectionLibrary((open) => !open)}
+              aria-expanded={showSectionLibrary}
             >
               <Plus />
               Add Section
             </Button>
+
+            {showSectionLibrary && (
+              <section className="overflow-hidden rounded-xl border border-black/[0.08] bg-white shadow-[0_10px_28px_rgba(23,26,22,0.04)]">
+                <div className="border-b border-black/[0.06] p-5">
+                  <h2 className="text-sm font-black text-[#11140f]">
+                    Section Library
+                  </h2>
+                  <p className="mt-1 text-xs font-medium text-[#646961]">
+                    Add hidden sections back to this public page.
+                  </p>
+                </div>
+                {hiddenItems.length > 0 ? (
+                  <div className="divide-y divide-black/[0.06]">
+                    {hiddenItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() =>
+                            workspaceView === "storefront"
+                              ? addStorefrontSection(
+                                  item.id as StorefrontSectionId,
+                                )
+                              : addBookingSection(item.id as BookingSectionId)
+                          }
+                          className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-[#fbfcf6]"
+                        >
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#f0f8dd] text-[#407b12]">
+                            <Icon className="h-5 w-5" strokeWidth={1.8} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-black text-[#141713]">
+                              {item.label}
+                            </span>
+                            <span className="mt-0.5 block text-xs font-medium text-[#646961]">
+                              {item.detail}
+                            </span>
+                          </span>
+                          <Plus className="h-4 w-4 text-[#57940e]" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="p-5 text-sm font-medium text-[#646961]">
+                    Every {workspaceView === "storefront" ? "storefront" : "booking"} section is already on the page.
+                  </p>
+                )}
+              </section>
+            )}
 
             <section className="space-y-5 rounded-xl border border-black/[0.08] bg-white p-5 shadow-[0_10px_28px_rgba(23,26,22,0.04)]">
               <div>
@@ -723,7 +672,7 @@ export function PageEditor({
               </span>
             </div>
             <PagePreview
-              orgName={orgName}
+              orgName={sections.storefront.hero.brandName || orgName}
               facebook={facebook}
               instagram={instagram}
               website={website}
@@ -893,6 +842,23 @@ export function PageEditor({
               </div>
             </section>
 
+            {/* Page Branding */}
+            <section className="space-y-4 rounded-xl border border-black/[0.08] bg-white p-5 shadow-[0_10px_28px_rgba(23,26,22,0.04)]">
+              <div className="flex items-center gap-2">
+                <Store className="h-4 w-4 text-[#57940e]" />
+                <h2 className="text-sm font-black text-[#11140f]">
+                  Page Branding
+                </h2>
+              </div>
+              <p className="text-xs font-medium text-[#646961]">
+                Controls the logo, venue name and small label shown in the public page header.
+              </p>
+              <PageBrandingEditor
+                hero={sections.storefront.hero}
+                update={(patch) => updateStorefront("hero", patch)}
+              />
+            </section>
+
             {/* Social Links */}
             <section className="space-y-4 rounded-xl border border-black/[0.08] bg-white p-5 shadow-[0_10px_28px_rgba(23,26,22,0.04)]">
               <div className="flex items-center gap-2">
@@ -940,7 +906,7 @@ export function PageEditor({
               </span>
             </div>
             <PagePreview
-              orgName={orgName}
+              orgName={sections.storefront.hero.brandName || orgName}
               facebook={facebook}
               instagram={instagram}
               website={website}
@@ -1056,6 +1022,37 @@ function SectionRow({
   );
 }
 
+function PageBrandingEditor({
+  hero,
+  update,
+}: {
+  hero: PublicPageSections["storefront"]["hero"];
+  update: (patch: Partial<PublicPageSections["storefront"]["hero"]>) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <FieldInput
+        label="Public page name"
+        value={hero.brandName}
+        onChange={(brandName) => update({ brandName })}
+        placeholder="Marco's Pickleball Courts"
+      />
+      <FieldInput
+        label="Small label"
+        value={hero.publicLabel}
+        onChange={(publicLabel) => update({ publicLabel })}
+        placeholder="Public bookings"
+      />
+      <FieldInput
+        label="Logo URL"
+        value={hero.logoUrl}
+        onChange={(logoUrl) => update({ logoUrl })}
+        placeholder="https://..."
+      />
+    </div>
+  );
+}
+
 function StorefrontEditor({
   active,
   sections,
@@ -1108,12 +1105,6 @@ function StorefrontEditor({
           label="Cover photo URL"
           value={hero.coverUrl}
           onChange={(coverUrl) => update("hero", { coverUrl })}
-          placeholder="https://..."
-        />
-        <FieldInput
-          label="Logo URL"
-          value={hero.logoUrl}
-          onChange={(logoUrl) => update("hero", { logoUrl })}
           placeholder="https://..."
         />
       </div>
@@ -1187,6 +1178,64 @@ function StorefrontEditor({
           values={testimonials.quotes}
           placeholder="Add a customer quote"
           onChange={(quotes) => update("testimonials", { quotes })}
+        />
+      </div>
+    );
+  }
+
+  if (active === "promo") {
+    const promo = sections.storefront.promo;
+    return (
+      <div className="space-y-4">
+        <EnabledField
+          enabled={promo.enabled}
+          onChange={(enabled) => update("promo", { enabled })}
+        />
+        <FieldInput
+          label="Eyebrow"
+          value={promo.eyebrow}
+          onChange={(eyebrow) => update("promo", { eyebrow })}
+          placeholder="New player offer"
+        />
+        <FieldInput
+          label="Headline"
+          value={promo.title}
+          onChange={(title) => update("promo", { title })}
+          placeholder="Bring your crew and save"
+        />
+        <FieldTextarea
+          label="Body copy"
+          value={promo.body}
+          onChange={(body) => update("promo", { body })}
+          placeholder="Add offer details or a seasonal announcement."
+        />
+        <FieldInput
+          label="CTA label"
+          value={promo.ctaLabel}
+          onChange={(ctaLabel) => update("promo", { ctaLabel })}
+          placeholder="Claim offer"
+        />
+      </div>
+    );
+  }
+
+  if (active === "faq") {
+    const faq = sections.storefront.faq;
+    return (
+      <div className="space-y-4">
+        <EnabledField
+          enabled={faq.enabled}
+          onChange={(enabled) => update("faq", { enabled })}
+        />
+        <FieldInput
+          label="Section title"
+          value={faq.title}
+          onChange={(title) => update("faq", { title })}
+          placeholder="Questions before you book?"
+        />
+        <FaqListEditor
+          values={faq.items}
+          onChange={(items) => update("faq", { items })}
         />
       </div>
     );
@@ -1267,6 +1316,78 @@ function StorefrontEditor({
         }
         placeholder="Add section copy"
       />
+    </div>
+  );
+}
+
+function FaqListEditor({
+  values,
+  onChange,
+}: {
+  values: FaqItem[];
+  onChange: (values: FaqItem[]) => void;
+}) {
+  const normalized = values.length
+    ? values
+    : [{ question: "", answer: "" }];
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs font-black">Questions</Label>
+      <div className="space-y-3">
+        {normalized.map((item, index) => (
+          <div
+            key={index}
+            className="space-y-2 rounded-xl border border-black/[0.08] bg-[#fbfaf7] p-3"
+          >
+            <Input
+              value={item.question}
+              placeholder="Question"
+              className="h-10 rounded-lg border-black/[0.08] bg-white"
+              onChange={(event) => {
+                const next = [...normalized];
+                next[index] = { ...item, question: event.target.value };
+                onChange(
+                  next.filter(
+                    (entry) =>
+                      entry.question.trim() ||
+                      entry.answer.trim() ||
+                      next.length === 1,
+                  ),
+                );
+              }}
+            />
+            <textarea
+              className="focus-visible:ring-ring/40 min-h-20 w-full resize-none rounded-lg border border-black/[0.08] bg-white px-3.5 py-3 text-sm outline-none focus-visible:ring-2"
+              value={item.answer}
+              onChange={(event) => {
+                const next = [...normalized];
+                next[index] = { ...item, answer: event.target.value };
+                onChange(
+                  next.filter(
+                    (entry) =>
+                      entry.question.trim() ||
+                      entry.answer.trim() ||
+                      next.length === 1,
+                  ),
+                );
+              }}
+              placeholder="Answer"
+              rows={3}
+            />
+          </div>
+        ))}
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="bg-white"
+        onClick={() => onChange([...values, { question: "", answer: "" }])}
+      >
+        <Plus />
+        Add question
+      </Button>
     </div>
   );
 }
@@ -1390,10 +1511,12 @@ function FieldInput({
   onChange: (value: string) => void;
   placeholder: string;
 }) {
+  const id = useId();
   return (
     <div className="space-y-2">
-      <Label className="text-xs font-black">{label}</Label>
+      <Label htmlFor={id} className="text-xs font-black">{label}</Label>
       <Input
+        id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -1414,10 +1537,12 @@ function FieldTextarea({
   onChange: (value: string) => void;
   placeholder: string;
 }) {
+  const id = useId();
   return (
     <div className="space-y-2">
-      <Label className="text-xs font-black">{label}</Label>
+      <Label htmlFor={id} className="text-xs font-black">{label}</Label>
       <textarea
+        id={id}
         className="focus-visible:ring-ring/40 min-h-28 w-full resize-none rounded-xl border border-black/[0.08] bg-[#fbfaf7] px-3.5 py-3 text-sm outline-none focus-visible:ring-2"
         value={value}
         onChange={(event) => onChange(event.target.value)}

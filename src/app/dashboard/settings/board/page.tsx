@@ -20,5 +20,16 @@ export default async function BoardSettingsPage() {
 
   if (!membership) redirect("/onboarding");
 
-  return <BoardSettings orgId={membership.org_id} />;
+  const { data: organization } = await supabase
+    .from("organizations")
+    .select("slug")
+    .eq("id", membership.org_id)
+    .single();
+
+  return (
+    <BoardSettings
+      orgId={membership.org_id}
+      orgSlug={organization?.slug ?? membership.org_id}
+    />
+  );
 }

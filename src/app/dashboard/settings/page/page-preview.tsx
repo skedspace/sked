@@ -18,41 +18,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PublicPageContent } from "@/app/p/[slug]/public-page-content";
+import type { PublicPageSections } from "@/lib/public-page";
 import { getContrastText } from "@/lib/utils";
-
-export type PublicPageSections = {
-  storefront: {
-    hero: {
-      enabled: boolean;
-      headline: string;
-      subheadline: string;
-      primaryCta: string;
-      secondaryCta: string;
-      coverUrl: string;
-      logoUrl: string;
-    };
-    about: { enabled: boolean; title: string; body: string };
-    amenities: { enabled: boolean; title: string; items: string[] };
-    courts: { enabled: boolean; title: string; intro: string };
-    gallery: { enabled: boolean; title: string; photos: string[] };
-    testimonials: { enabled: boolean; title: string; quotes: string[] };
-    contact: {
-      enabled: boolean;
-      address: string;
-      city: string;
-      hours: string;
-      phone: string;
-      email: string;
-    };
-  };
-  booking: {
-    service: { enabled: boolean; title: string; helper: string };
-    dateTime: { enabled: boolean; title: string; helper: string };
-    customer: { enabled: boolean; title: string; helper: string };
-    payment: { enabled: boolean; title: string; helper: string };
-    confirmation: { enabled: boolean; title: string; helper: string };
-  };
-};
 
 type PreviewProps = {
   orgName: string;
@@ -129,7 +96,9 @@ export function PagePreview({
   const amenities = sections.storefront.amenities;
   const courts = sections.storefront.courts;
   const gallery = sections.storefront.gallery;
+  const promo = sections.storefront.promo;
   const testimonials = sections.storefront.testimonials;
+  const faq = sections.storefront.faq;
   const displayName = orgName || "Ace Pickleball";
   const cover = hero.coverUrl || FALLBACK_HERO;
   const logo = hero.logoUrl || "";
@@ -188,7 +157,7 @@ export function PagePreview({
                     {displayName}
                   </p>
                   <p className="text-[10px] font-black uppercase tracking-[0.24em]" style={{ color: primaryColor }}>
-                    Public bookings
+                    {hero.publicLabel || "Public bookings"}
                   </p>
                 </div>
               </div>
@@ -235,17 +204,31 @@ export function PagePreview({
               </section>
             )}
 
+            {about.enabled && (
+              <section className="border-b border-black/[0.08] bg-white p-6 text-center">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>
+                  About
+                </p>
+                <h2 className="mx-auto mt-3 max-w-xl text-3xl font-black tracking-normal text-[#071420]">
+                  {about.title}
+                </h2>
+                <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-[#5f695c]">
+                  {about.body}
+                </p>
+              </section>
+            )}
+
             {courts.enabled && (
               <section className="grid gap-6 p-6 lg:grid-cols-[200px_minmax(0,1fr)]">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>
-                    {courts.title}
+                    Courts
                   </p>
                   <h2 className="mt-3 text-3xl font-black tracking-normal">
-                    {about.enabled ? about.title : "Built for Great Games"}
+                    {courts.title}
                   </h2>
                   <p className="mt-3 text-sm leading-6 text-[#5f695c]">
-                    {courts.intro || about.body}
+                    {courts.intro || "Choose a court that fits your match, then reserve in seconds."}
                   </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -267,6 +250,54 @@ export function PagePreview({
                       </div>
                     </article>
                   ))}
+                </div>
+              </section>
+            )}
+
+            {gallery.enabled && (
+              <section className="border-t border-black/[0.08] bg-white p-6">
+                <div className="text-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>
+                    Gallery
+                  </p>
+                  <h2 className="mt-2 text-2xl font-black tracking-normal text-[#071420]">
+                    {gallery.title}
+                  </h2>
+                </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  {photos.slice(0, 6).map((photo, index) => (
+                    <div
+                      key={`${photo}-${index}`}
+                      className="relative min-h-40 overflow-hidden rounded-xl bg-[#071420]"
+                    >
+                      <img
+                        src={photo}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {promo.enabled && (
+              <section className="p-6">
+                <div className="grid items-center gap-4 rounded-2xl p-5 text-white md:grid-cols-[1fr_auto]" style={{ backgroundColor: inkColor }}>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>
+                      {promo.eyebrow}
+                    </p>
+                    <h2 className="mt-2 text-2xl font-black uppercase tracking-normal">
+                      {promo.title}
+                    </h2>
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-white/72">
+                      {promo.body}
+                    </p>
+                  </div>
+                  <span className="inline-flex min-h-11 items-center justify-center rounded-xl px-5 text-xs font-black uppercase" style={{ backgroundColor: primaryColor, color: getContrastText(primaryColor) }}>
+                    {promo.ctaLabel}
+                  </span>
                 </div>
               </section>
             )}
@@ -324,6 +355,26 @@ export function PagePreview({
                       </div>
                       <p className="text-sm leading-6 text-[#273220]">
                         &quot;{quote}&quot;
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {faq.enabled && faq.items.length > 0 && (
+              <section className="p-6">
+                <h2 className="text-2xl font-black tracking-normal">
+                  {faq.title}
+                </h2>
+                <div className="mt-4 divide-y divide-black/[0.08] rounded-xl bg-white px-5">
+                  {faq.items.slice(0, 4).map((item, index) => (
+                    <article key={`${item.question}-${index}`} className="py-4">
+                      <h3 className="text-sm font-black text-[#071420]">
+                        {item.question}
+                      </h3>
+                      <p className="mt-2 text-sm leading-6 text-[#5f695c]">
+                        {item.answer}
                       </p>
                     </article>
                   ))}
@@ -442,6 +493,12 @@ export function PagePreview({
                   : undefined,
                 paymentHelper: sections.booking.payment.enabled
                   ? sections.booking.payment.helper
+                  : undefined,
+                policyTitle: sections.booking.policy.enabled
+                  ? sections.booking.policy.title
+                  : undefined,
+                policyHelper: sections.booking.policy.enabled
+                  ? sections.booking.policy.helper
                   : undefined,
                 confirmationTitle: sections.booking.confirmation.enabled
                   ? sections.booking.confirmation.title

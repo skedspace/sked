@@ -2,8 +2,15 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { OrgSetupForm } from "./org-setup-form";
+import { isDevAuthEnabled } from "@/lib/dev-auth";
 
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ plan?: string; billing?: string; term?: string }>;
+}) {
+  const selection = await searchParams;
+  const termMonths = selection.plan === "premium" ? Number(selection.term ?? 1) : null;
   const supabase = createClient();
   const {
     data: { session },
@@ -21,10 +28,7 @@ export default async function OnboardingPage() {
     .limit(1);
 
   // Dev mode: skip membership check — show onboarding form for testing
-  const isDev =
-    process.env.NODE_ENV !== "production" ||
-    process.env.DEV_AUTH === "true" ||
-    process.env.NEXT_PUBLIC_DEV_AUTH === "true";
+  const isDev = isDevAuthEnabled();
 
   if (!isDev && memberships && memberships.length > 0) {
     redirect("/dashboard");
@@ -37,7 +41,7 @@ export default async function OnboardingPage() {
         <p className="mb-8 text-muted-foreground">
           Create your public page in under 10 minutes.
         </p>
-        <OrgSetupForm userId={session.user.id} />
+        <OrgSetupForm userId={session.user.id} termMonths={termMonths} />
         <p className="mt-6 text-center text-sm text-muted-foreground">
           <Link href="/dashboard" className="text-primary hover:underline">
             I&apos;ll do this later

@@ -1,18 +1,25 @@
 "use client";
 
-import { use, useEffect, useState, useCallback, useRef } from "react";
+import Link from "next/link";
+import { use, useCallback, useEffect, useState } from "react";
 import { MultiBoardHost } from "@/components/board/multi-board-host";
 import { getLayoutById } from "@/components/board/board-layouts";
 import { type CourtData, type CourtPlayer } from "@/components/board/active-courts";
 import { type QueueGroup } from "@/components/board/queue-display";
-import { type TournamentInfo } from "@/components/board/tournament-info";
-import { type BracketMatch } from "@/components/board/tournament-bracket";
 import { type SponsorItem } from "@/components/board/sponsor-marquee";
 import { createClient } from "@/lib/supabase/client";
-import type { LiveSessionState, LiveSession } from "@/lib/session-actions";
-import Link from "next/link";
+import type { LiveSession, LiveSessionState } from "@/lib/session-actions";
+import {
+  formatCachedAt,
+  loadCachedBoardState,
+  saveCachedBoardState,
+} from "@/lib/board-offline-cache";
 
-/* ── Helpers to transform session state ── */
+type OrgRow = {
+  id: string;
+  name?: string | null;
+  slug?: string | null;
+};
 
 function sessionCourtsToCourtData(courts: LiveSessionState["courts"]): CourtData[] {
   return courts.map((c) => {
@@ -22,18 +29,27 @@ function sessionCourtsToCourtData(courts: LiveSessionState["courts"]): CourtData
       status: c.status,
       durationMinutes: c.durationMinutes,
     };
+
     if (c.status === "active" && c.group && c.group.players.length >= 4) {
-      base.teamA = [c.group.players[0], c.group.players[1]] as [CourtPlayer, CourtPlayer];
-      base.teamB = [c.group.players[2], c.group.players[3]] as [CourtPlayer, CourtPlayer];
+      base.teamA = [c.group.players[0], c.group.players[1]] as [
+        CourtPlayer,
+        CourtPlayer,
+      ];
+      base.teamB = [c.group.players[2], c.group.players[3]] as [
+        CourtPlayer,
+        CourtPlayer,
+      ];
       base.startedAt = c.startedAt ?? undefined;
       base.gameNumber = 1;
     }
+
     return base;
   });
 }
 
 function sessionToQueueGroups(state: LiveSessionState): QueueGroup[] {
   const groups: QueueGroup[] = [];
+
   state.groups.forEach((g, idx) => {
     groups.push({
       id: g.id,
@@ -45,6 +61,7 @@ function sessionToQueueGroups(state: LiveSessionState): QueueGroup[] {
       etaMinutes: (idx + 1) * 6,
     });
   });
+
   if (state.returned.length > 0) {
     groups.push({
       id: "returned",
@@ -56,10 +73,15 @@ function sessionToQueueGroups(state: LiveSessionState): QueueGroup[] {
       returnedAgoMinutes: 0,
     });
   }
+
   return groups;
 }
 
-/* ── Page ── */
+function titleizeSlug(value: string) {
+  return value
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 export default function MultiBoardPage({
   params,
@@ -67,51 +89,115 @@ export default function MultiBoardPage({
   params: Promise<{ org: string; layoutId: string }>;
 }) {
   const { org, layoutId } = use(params);
-
-  const orgName = org.charAt(0).toUpperCase() + org.slice(1);
   const layout = getLayoutById(layoutId);
+  const fallbackOrgName = titleizeSlug(org);
 
-  const [loading, setLoading] = useState(true);
   const [sessionName, setSessionName] = useState("Open Play");
+  const [orgName, setOrgName] = useState(fallbackOrgName);
   const [courts, setCourts] = useState<CourtData[]>([]);
   const [queue, setQueue] = useState<QueueGroup[]>([]);
-
-  // Sponsors from localStorage
   const [sponsors, setSponsors] = useState<SponsorItem[]>([]);
+  const [offline, setOffline] = useState(false);
+  const [cachedAt, setCachedAt] = useState<string | null>(null);
 
   useEffect(() => {
+    const cached = loadCachedBoardState(org);
+    if (cached) {
+      setOrgName(cached.orgName);
+      setSessionName(cached.sessionName);
+      setCourts(cached.courts);
+      setQueue(cached.queue);
+      setSponsors(cached.sponsors);
+      setCachedAt(cached.savedAt);
+    }
+
     try {
       const saved = localStorage.getItem("sked_board_sponsors");
-      if (saved) { setSponsors(JSON.parse(saved) as SponsorItem[]); }
-    } catch { /* ignore */ }
-  }, []);
-
-  // ── Fetch session state from DB ──
-  const fetchSession = useCallback(async () => {
-    const db = createClient();
-    const { data: orgRow } = await db
-      .from("organizations")
-      .select("id")
-      .eq("slug", org)
-      .single();
-    if (!orgRow) { setLoading(false); return; }
-
-    const { data: session } = await db
-      .from("live_sessions")
-      .select("*")
-      .eq("org_id", orgRow.id)
-      .eq("status", "active")
-      .maybeSingle();
-
-    if (session) {
-      const s = session as LiveSession;
-      const state = s.state as LiveSessionState;
-      setSessionName(s.name);
-      setCourts(sessionCourtsToCourtData(state.courts ?? []));
-      setQueue(sessionToQueueGroups(state));
+      if (saved) setSponsors(JSON.parse(saved) as SponsorItem[]);
+    } catch {
+      // Ignore local sponsor cache issues on TV displays.
     }
-    setLoading(false);
   }, [org]);
+
+  const fetchSession = useCallback(async () => {
+    try {
+      const db = createClient();
+      let orgRow = (
+        await db
+          .from("organizations")
+          .select("id, name, slug")
+          .eq("slug", org)
+          .maybeSingle()
+      ).data as OrgRow | null;
+
+      if (!orgRow) {
+        orgRow = (
+          await db
+            .from("organizations")
+            .select("id, name, slug")
+            .eq("id", org)
+            .maybeSingle()
+        ).data as OrgRow | null;
+      }
+
+      if (!orgRow) {
+        const cached = loadCachedBoardState(org);
+        if (cached) {
+          setOffline(true);
+          setCachedAt(cached.savedAt);
+        }
+        return;
+      }
+
+      const { data: session } = await db
+        .from("live_sessions")
+        .select("*")
+        .eq("org_id", orgRow.id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      const nextOrgName = orgRow.name ?? fallbackOrgName;
+      let nextSessionName = "No Active Session";
+      let nextCourts: CourtData[] = [];
+      let nextQueue: QueueGroup[] = [];
+
+      if (session) {
+        const liveSession = session as LiveSession;
+        const state = liveSession.state as LiveSessionState;
+        nextSessionName = liveSession.name;
+        nextCourts = sessionCourtsToCourtData(state.courts ?? []);
+        nextQueue = sessionToQueueGroups(state);
+      }
+
+      setOrgName(nextOrgName);
+      setSessionName(nextSessionName);
+      setCourts(nextCourts);
+      setQueue(nextQueue);
+      setOffline(false);
+      setCachedAt(null);
+
+      saveCachedBoardState(org, {
+        orgName: nextOrgName,
+        sessionName: nextSessionName,
+        courts: nextCourts,
+        queue: nextQueue,
+        tournament: null,
+        bracket: [],
+        sponsors,
+      });
+    } catch {
+      const cached = loadCachedBoardState(org);
+      if (cached) {
+        setOrgName(cached.orgName);
+        setSessionName(cached.sessionName);
+        setCourts(cached.courts);
+        setQueue(cached.queue);
+        setSponsors(cached.sponsors);
+        setCachedAt(cached.savedAt);
+      }
+      setOffline(true);
+    }
+  }, [fallbackOrgName, org, sponsors]);
 
   useEffect(() => {
     fetchSession();
@@ -119,13 +205,12 @@ export default function MultiBoardPage({
     return () => clearInterval(interval);
   }, [fetchSession]);
 
-  // Layout not found → show error
   if (!layout) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0f110e] p-8">
         <div className="max-w-md text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/5">
-            <span className="text-2xl">🔲</span>
+            <span className="text-2xl">?</span>
           </div>
           <h1 className="mb-2 text-xl font-black text-white">Layout Not Found</h1>
           <p className="mb-6 text-sm text-white/40">
@@ -149,6 +234,11 @@ export default function MultiBoardPage({
     );
   }
 
+  const cachedTime = formatCachedAt(cachedAt);
+  const statusText = offline
+    ? `Offline${cachedTime ? ` - Last updated ${cachedTime}` : ""}`
+    : "Auto-refreshes every 10s - Multi-board mode";
+
   return (
     <MultiBoardHost
       layout={layout}
@@ -159,6 +249,7 @@ export default function MultiBoardPage({
       orgName={orgName}
       sessionName={sessionName}
       sponsors={sponsors}
+      statusText={statusText}
     />
   );
 }

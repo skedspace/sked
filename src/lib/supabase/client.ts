@@ -1,8 +1,9 @@
 import type { Database } from "@/lib/database.types";
+import { isDevAuthEnabled } from "@/lib/dev-auth";
 
 // Only import the real client in production to avoid bundling Supabase in dev
 let createBrowserClient: typeof import("@supabase/ssr")["createBrowserClient"] | null = null;
-if (process.env.NODE_ENV === "production") {
+if (!isDevAuthEnabled()) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   createBrowserClient = require("@supabase/ssr").createBrowserClient;
 }
@@ -15,7 +16,20 @@ const store = new Map<string, Record<string, unknown>[]>();
 
 function seedStore() {
   store.set("organizations", [
-    { id: MOCK_ORG_ID, name: "Demo Courts", slug: "demo", plan: "free" },
+    { id: MOCK_ORG_ID, name: "Marco's Pickleball Courts", slug: "marco-pickleball", plan: "trial" },
+  ]);
+  store.set("pages", [
+    {
+      org_id: MOCK_ORG_ID,
+      theme: "default",
+      sections: [],
+      cover_url: null,
+      logo_url: null,
+      bio: "Premium courts, coaching, and open play for the local pickleball community.",
+      socials: {},
+      is_published: true,
+      primary_color: "#72c914",
+    },
   ]);
   store.set("locations", [
     { id: "loc-1", org_id: MOCK_ORG_ID, name: "Main Branch", address: "123 Court St", is_active: true },
@@ -180,7 +194,7 @@ function createMockClient() {
 }
 
 export function createClient() {
-  if (process.env.NODE_ENV !== "production") {
+  if (isDevAuthEnabled()) {
     return createMockClient() as any;
   }
   return (createBrowserClient as any)(

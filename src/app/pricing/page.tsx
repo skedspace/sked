@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   CalendarCheck,
-  Check,
   Sparkles,
   CheckCircle2,
   HelpCircle,
@@ -10,6 +9,9 @@ import {
 
 import { PLANS } from "@/lib/plans";
 import type { Plan, PlanId } from "@/lib/plans";
+import { readPlatformPricingConfig } from "@/lib/pricing-config";
+import { AnnualSavingsModal } from "./annual-savings-modal";
+import { SubscribeButton } from "./subscribe-button";
 
 function BrandMark({ inverted = false }: { inverted?: boolean }) {
   return (
@@ -33,35 +35,30 @@ function formatPrice(cents: number): { whole: string; decimal: string } {
 }
 
 const PLAN_META: Record<PlanId, { popular?: boolean; accent?: string }> = {
-  free: {},
-  starter: { popular: true, accent: "bg-[#b9f34b]" },
-  pro: { accent: "bg-[#171a16]" },
+  trial: {},
+  monthly: { popular: true, accent: "bg-[#b9f34b]" },
 };
 
 const FAQS = [
   {
-    q: "Can I switch plans later?",
-    a: "Yes. You can upgrade or downgrade anytime. Changes apply immediately, and we prorate the difference.",
+    q: "What happens when my 14-day trial ends?",
+    a: "Your trial lasts 14 days with full access to all features. When it ends, you'll need to subscribe to the Monthly plan to continue accepting bookings. No data is lost — your settings, services, and customers are all preserved.",
   },
   {
-    q: "What happens if I exceed my booking limit?",
-    a: "We'll notify you as you approach your limit. If you hit it, new bookings are paused until the next cycle or until you upgrade.",
+    q: "Do I need to enter a credit card to start the trial?",
+    a: "No. Your 14-day trial is completely free — no card required. You'll only be asked for payment when you decide to subscribe.",
   },
   {
     q: "Is there a discount for annual billing?",
-    a: "Not yet, but it's on the roadmap. We'll notify existing subscribers when it launches.",
+    a: "Yes. Annual Premium options are available with savings based on the discount settings managed from the SKED admin pricing page.",
   },
   {
-    q: "Can I try paid features before upgrading?",
-    a: "Yes — your first paid feature (e.g. deposits, custom theme) triggers a 14-day free trial of that tier. No card required to start.",
+    q: "How do payments work for my customers?",
+    a: "Each organization controls its own customer payment instructions. You can display GCash QR, bank transfer, cash, or other manual payment options on your booking page.",
   },
   {
     q: "Do you offer non-profit or educational discounts?",
     a: "Reach out to us — we're happy to work something out for qualifying organizations.",
-  },
-  {
-    q: "How do payments work for my customers?",
-    a: "SKED integrates with PayMongo for card and GCash payments. You configure the payment mode per service (free, deposit, or full).",
   },
 ];
 
@@ -69,6 +66,7 @@ function PricingCard({ plan }: { plan: Plan }) {
   const meta = PLAN_META[plan.id];
   const price = formatPrice(plan.priceMonthlyCents);
   const isPopular = meta.popular;
+  const isTrial = plan.id === "trial";
 
   return (
     <article
@@ -92,7 +90,12 @@ function PricingCard({ plan }: { plan: Plan }) {
 
       <div className="mb-8">
         {plan.priceMonthlyCents === 0 ? (
-          <span className="text-5xl font-black tracking-[-0.04em]">Free</span>
+          <div>
+            <span className="text-5xl font-black tracking-[-0.04em]">Free</span>
+            <p className="mt-1 text-sm text-muted-foreground">
+              for {plan.trialDays} days &middot; no card required
+            </p>
+          </div>
         ) : (
           <div className="flex items-baseline gap-0.5">
             <span className="text-sm font-semibold text-muted-foreground">₱</span>
@@ -119,30 +122,24 @@ function PricingCard({ plan }: { plan: Plan }) {
       </ul>
 
       <div className="mt-auto">
-        <Link
-          href="/signup"
+        {isTrial ? <Link
+          href="/signup?plan=trial"
           className={`group inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-offset-4 focus-visible:outline-none ${
             isPopular
               ? "bg-[#171a16] text-white shadow-[0_6px_16px_rgba(23,26,22,0.15)] hover:bg-black hover:shadow-[0_10px_24px_rgba(23,26,22,0.2)] focus-visible:ring-[#171a16]"
               : "border border-black/15 bg-white/50 text-foreground hover:border-black/30 hover:bg-white focus-visible:ring-black/30"
           }`}
         >
-          {plan.priceMonthlyCents === 0 ? "Get started free" : "Start free trial"}
+          {isTrial ? "Start free trial" : "Subscribe now"}
           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-        </Link>
+        </Link> : <SubscribeButton
+          termMonths={1}
+          className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#171a16] px-6 py-3 text-sm font-semibold text-white shadow-[0_6px_16px_rgba(23,26,22,0.15)] transition-all hover:-translate-y-0.5 hover:bg-black hover:shadow-[0_10px_24px_rgba(23,26,22,0.2)] focus-visible:ring-2 focus-visible:ring-[#171a16] focus-visible:ring-offset-4 focus-visible:outline-none disabled:opacity-60"
+        >
+          Subscribe now
+        </SubscribeButton>}
       </div>
     </article>
-  );
-}
-
-function FeatureRow({ label, free, starter, pro }: { label: string; free: string; starter: string; pro: string }) {
-  return (
-    <tr className="border-b border-black/[0.06]">
-      <td className="py-4 pr-4 text-sm font-medium">{label}</td>
-      <td className="py-4 pr-4 text-center text-sm text-muted-foreground">{free}</td>
-      <td className="py-4 pr-4 text-center text-sm font-medium">{starter}</td>
-      <td className="py-4 text-center text-sm font-medium">{pro}</td>
-    </tr>
   );
 }
 
@@ -162,8 +159,45 @@ function SectionHeader({ label, title, description }: { label: string; title: st
   );
 }
 
-export default function PricingPage() {
-  const plans = [PLANS.free, PLANS.starter, PLANS.pro];
+type PricingConfig = {
+  monthlyPriceCents: number;
+  trialDays: number;
+  oneYearDiscount: number;
+  twoYearDiscount: number;
+  threeYearDiscount: number;
+  features: string[];
+  showPlans: boolean;
+};
+
+async function getPricingConfig(): Promise<PricingConfig> {
+  const config = await readPlatformPricingConfig();
+  return {
+    monthlyPriceCents: config.monthlyPriceCents,
+    trialDays: config.trialDays,
+    oneYearDiscount: config.oneYearDiscount,
+    twoYearDiscount: config.twoYearDiscount,
+    threeYearDiscount: config.threeYearDiscount,
+    features: config.features,
+    showPlans: config.showPlansToCustomers,
+  };
+}
+
+export default async function PricingPage() {
+  const pricingConfig = await getPricingConfig();
+  const plans: Plan[] = pricingConfig.showPlans
+    ? [
+        {
+          ...PLANS.trial,
+          trialDays: pricingConfig.trialDays,
+          description: `${pricingConfig.trialDays}-day free trial. No card required.`,
+        },
+        {
+          ...PLANS.monthly,
+          priceMonthlyCents: pricingConfig.monthlyPriceCents,
+          highlights: pricingConfig.features,
+        },
+      ]
+    : [];
 
   return (
     <div className="home-shell flex min-h-screen flex-col overflow-hidden">
@@ -214,9 +248,9 @@ export default function PricingPage() {
               Simple, transparent pricing
             </div>
             <h1 className="text-[clamp(3rem,6vw,5.8rem)] leading-[0.89] font-black tracking-[-0.075em] text-balance">
-              Start free.
+              Try free for {pricingConfig.trialDays} days.
               <span className="relative ml-2 inline-block">
-                Scale when you&apos;re ready.
+                Subscribe when you&apos;re ready.
                 <span
                   aria-hidden
                   className="absolute right-0 -bottom-1 left-0 -z-10 h-[0.22em] -rotate-1 rounded-full bg-[#b9f34b]"
@@ -224,57 +258,57 @@ export default function PricingPage() {
               </span>
             </h1>
             <p className="text-muted-foreground mx-auto mt-6 max-w-xl text-lg leading-8 sm:text-xl">
-              Every plan includes the core booking engine, your public page, and no hidden setup
-              fees. Only pay as your business grows.
+              No credit card required during your {pricingConfig.trialDays}-day trial. All features included.
+              Only pay when you&apos;re ready to go monthly.
             </p>
           </div>
         </section>
 
         {/* ── Plan cards ── */}
         <section className="mx-auto max-w-7xl px-5 pb-16 sm:px-8 sm:pb-20">
-          <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-3">
-            {plans.map((plan) => (
+          <div className="mx-auto grid max-w-3xl gap-6 lg:grid-cols-2">
+            {plans.length > 0 ? plans.map((plan) => (
               <PricingCard key={plan.id} plan={plan} />
-            ))}
+            )) : (
+              <article className="rounded-[24px] border border-black/[0.09] bg-white p-8 text-center">
+                <h3 className="text-xl font-bold">Pricing is currently private</h3>
+                <p className="text-muted-foreground mt-2 text-sm">
+                  Contact SKED to discuss the right setup for your organization.
+                </p>
+                <Link href="/signup" className="mt-6 inline-flex rounded-full bg-[#171a16] px-6 py-3 text-sm font-semibold text-white">
+                  Contact us
+                </Link>
+              </article>
+            )}
           </div>
+          {plans.length > 0 && (
+            <AnnualSavingsModal
+              monthlyPriceCents={pricingConfig.monthlyPriceCents}
+              oneYearDiscount={pricingConfig.oneYearDiscount}
+              twoYearDiscount={pricingConfig.twoYearDiscount}
+              threeYearDiscount={pricingConfig.threeYearDiscount}
+            />
+          )}
         </section>
 
-        {/* ── Feature comparison table ── */}
+        {/* ── Feature highlights ── */}
         <section className="bg-[#e9e8df]">
           <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
             <SectionHeader
-              label="Compare"
-              title="Everything across every plan."
-              description="Core booking features are free forever. Unlock more capacity, customization, and control as you grow."
+              label="Everything included"
+              title="All features, no tiers."
+              description="No feature gates. Every organization gets the full SKED platform — trial and monthly subscribers alike."
             />
 
-            <div className="mt-14 overflow-x-auto">
-              <table className="w-full min-w-[560px]">
-                <thead>
-                  <tr className="border-b border-black/10 text-sm font-semibold">
-                    <th className="pb-4 pr-4 text-left">Feature</th>
-                    <th className="pb-4 pr-4 text-center">Free</th>
-                    <th className="pb-4 pr-4 text-center text-[#171a16]">Starter</th>
-                    <th className="pb-4 text-center text-[#171a16]">Pro</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <FeatureRow label="Monthly bookings" free="Up to 50" starter="Up to 500" pro="Unlimited" />
-                  <FeatureRow label="Resources" free="Up to 5" starter="Up to 20" pro="Unlimited" />
-                  <FeatureRow label="Locations" free="1" starter="3" pro="Unlimited" />
-                  <FeatureRow label="Team accounts" free="—" starter="Up to 5" pro="Unlimited" />
-                  <FeatureRow label="Public page" free="Basic" starter="Custom theme" pro="Custom theme" />
-                  <FeatureRow label="Payment collection" free="—" starter="Deposit & full" pro="Deposit & full" />
-                  <FeatureRow label="Discount codes" free="—" starter="✓" pro="✓" />
-                  <FeatureRow label="Packages / Credits" free="—" starter="✓" pro="✓" />
-                  <FeatureRow label="Recurring bookings" free="—" starter="✓" pro="✓" />
-                  <FeatureRow label="Google Calendar sync" free="—" starter="✓" pro="✓" />
-                  <FeatureRow label="Campaigns & raffles" free="—" starter="—" pro="✓" />
-                  <FeatureRow label="Advanced analytics" free="—" starter="—" pro="✓" />
-                  <FeatureRow label="API access" free="—" starter="—" pro="✓" />
-                  <FeatureRow label="Support" free="Email" starter="Priority" pro="Priority + Slack" />
-                </tbody>
-              </table>
+            <div className="mt-14 mx-auto max-w-2xl">
+              <ul className="space-y-4">
+                {pricingConfig.features.map((feature) => (
+                  <li key={feature} className="flex items-center gap-3 text-sm font-medium">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-[#5f8b12]" strokeWidth={2.5} />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </section>
@@ -284,7 +318,7 @@ export default function PricingPage() {
           <SectionHeader
             label="FAQ"
             title="Questions? Answered."
-            description="Everything you need to know about SKED pricing and plans."
+            description="Everything you need to know about SKED pricing."
           />
 
           <div className="mx-auto mt-14 grid max-w-3xl gap-4">
@@ -315,16 +349,16 @@ export default function PricingPage() {
                 Ready to get started?
               </p>
               <h2 className="mt-6 text-4xl leading-[0.98] font-black tracking-[-0.055em] text-balance sm:text-6xl">
-                Your first 50 bookings are on us.
+                Your {pricingConfig.trialDays}-day free trial starts now.
               </h2>
               <p className="mt-6 max-w-xl text-lg leading-8 text-white/60">
-                No credit card. No time limit. Just a simple way to get booked.
+                No credit card. No commitments. All features included.
               </p>
               <Link
                 href="/signup"
                 className="group mt-9 inline-flex min-h-14 items-center justify-center gap-3 rounded-full bg-[#b9f34b] px-7 text-base font-bold text-[#171a16] transition-all hover:-translate-y-0.5 hover:bg-[#c8ff62] focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-4 focus-visible:ring-offset-[#171a16] focus-visible:outline-none"
               >
-                Build my booking page
+                Start my free trial
                 <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
               </Link>
             </div>
@@ -340,7 +374,7 @@ export default function PricingPage() {
             <span className="text-lg">sked</span>
           </div>
           <p className="text-muted-foreground max-w-md text-sm leading-6">
-            © {new Date().getFullYear()} SKED. The simple way for modern businesses to get booked.
+            &copy; {new Date().getFullYear()} SKED. The simple way for modern businesses to get booked.
           </p>
           <div className="flex items-center gap-5 text-sm font-semibold">
             <Link href="/pricing" className="transition-opacity hover:opacity-55">

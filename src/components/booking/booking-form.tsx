@@ -2,14 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createBooking } from "@/lib/booking-actions";
 import { formatTime, formatCurrency, getContrastText } from "@/lib/utils";
 import { applyDiscountCode, type DiscountResult } from "@/lib/discount-actions";
 import { useAnalytics } from "@/lib/analytics";
-import { CheckCircle2, ChevronLeft, Timer } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Copy, Timer } from "lucide-react";
 
 type Slot = {
   start_time: string;
@@ -23,6 +22,20 @@ type Service = {
   name: string;
   duration_min: number;
   price_cents: number;
+  payment_mode?: string;
+  deposit_cents?: number | null;
+};
+
+type PaymentMethod = {
+  id: string;
+  name: string;
+  type: string;
+  account_name?: string;
+  account_number?: string;
+  instructions?: string;
+  qr_image_url?: string;
+  status?: string;
+  is_default?: boolean;
 };
 
 type Step = "pick-slot" | "details" | "done";
@@ -42,6 +55,7 @@ export function BookingForm({
   primaryColor = "#75c51b",
   inkColor = "#171a16",
   mutedColor = "#8c9185",
+  paymentMethods = [],
 }: {
   orgId: string;
   orgSlug: string;
@@ -52,9 +66,12 @@ export function BookingForm({
     customerHelper?: string;
     paymentTitle?: string;
     paymentHelper?: string;
+    policyTitle?: string;
+    policyHelper?: string;
     confirmationTitle?: string;
     confirmationHelper?: string;
   };
+  paymentMethods?: PaymentMethod[];
   primaryColor?: string;
   inkColor?: string;
   mutedColor?: string;
@@ -66,6 +83,9 @@ export function BookingForm({
   const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState(
+    () => paymentMethods.find((method) => method.is_default)?.id ?? paymentMethods[0]?.id ?? "pay_at_venue",
+  );
   const [loading, setLoading] = useState(false);
   const [discountCode, setDiscountCode] = useState("");
   const [discountResult, setDiscountResult] = useState<DiscountResult | null>(null);
@@ -84,7 +104,6 @@ export function BookingForm({
     return Array.from(groups.entries());
   }, [slots]);
 
-  const stepIndex = ["pick-slot", "details", "done"].indexOf(step);
   const totalSteps = 3;
 
   async function handleCheckCode() {
@@ -118,6 +137,7 @@ export function BookingForm({
     formData.set("email", email);
     formData.set("phone", phone);
     formData.set("price_cents", String(finalPrice));
+    formData.set("payment_method_id", selectedPaymentMethodId);
     formData.set("idempotency_key", crypto.randomUUID());
     if (discountResult?.valid) {
       formData.set("discount_code", discountCode.toUpperCase());
@@ -316,14 +336,63 @@ export function BookingForm({
               />
             </div>
 
-            {/* Payment section */}
-            {(bookingCopy?.paymentTitle || bookingCopy?.paymentHelper) && (
-              <div>
-                {bookingCopy?.paymentTitle && (
-                  <p className="text-xs font-black text-[#171a16]">{bookingCopy.paymentTitle}</p>
+            <div className="space-y-2">
+              {(bookingCopy?.paymentTitle || bookingCopy?.paymentHelper) && (
+                <div>
+                  {bookingCopy?.paymentTitle && (
+                    <p className="text-xs font-black text-[#171a16]">{bookingCopy.paymentTitle}</p>
+                  )}
+                  {bookingCopy?.paymentHelper && (
+                    <p className="text-xs font-medium text-[#8c9185]">{bookingCopy.paymentHelper}</p>
+                  )}
+                </div>
+              )}
+              {service.price_cents > 0 && paymentMethods.length > 0 && (
+                <div className="grid gap-2">
+                  {paymentMethods.map((method) => (
+                    <button
+                      type="button"
+                      key={method.id}
+                      onClick={() => setSelectedPaymentMethodId(method.id)}
+                      className={`rounded-xl border p-3 text-left text-xs transition-all ${
+                        selectedPaymentMethodId === method.id ? "bg-[#f0f9dd]" : "bg-white"
+                      }`}
+                      style={{
+                        borderColor: selectedPaymentMethodId === method.id ? primaryColor : "rgba(0,0,0,0.08)",
+                      }}
+                    >
+                      <span className="block font-black text-[#171a16]">{method.name}</span>
+                      <span className="mt-1 block font-medium text-[#6e716b]">
+                        {[method.account_name, method.account_number].filter(Boolean).join(" - ") || "Manual payment instructions"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {service.price_cents > 0 && paymentMethods.length === 0 && (
+                <div className="rounded-xl border border-black/[0.08] bg-white p-3 text-xs font-medium text-[#6e716b]">
+                  Payment details will be coordinated by the venue after booking.
+                </div>
+              )}
+            </div>
+
+            {(bookingCopy?.policyTitle || bookingCopy?.policyHelper) && (
+              <div
+                className="rounded-xl border p-3 text-xs"
+                style={{
+                  borderColor: primaryColor + "30",
+                  backgroundColor: primaryColor + "12",
+                }}
+              >
+                {bookingCopy?.policyTitle && (
+                  <p className="font-black text-[#171a16]">
+                    {bookingCopy.policyTitle}
+                  </p>
                 )}
-                {bookingCopy?.paymentHelper && (
-                  <p className="text-xs font-medium text-[#8c9185]">{bookingCopy.paymentHelper}</p>
+                {bookingCopy?.policyHelper && (
+                  <p className="mt-1 font-medium leading-5 text-[#5f695c]">
+                    {bookingCopy.policyHelper}
+                  </p>
                 )}
               </div>
             )}
@@ -417,6 +486,13 @@ export function BookingForm({
           <p className="mt-3 text-xs font-medium" style={{ color: mutedColor }}>
             Ref: {bookingId?.slice(0, 8).toUpperCase() ?? "---"}
           </p>
+          {service.price_cents > 0 && (
+            <ManualPaymentInstructions
+              method={paymentMethods.find((method) => method.id === selectedPaymentMethodId) ?? null}
+              amount={discountResult?.valid ? discountResult.final_cents : service.price_cents}
+              primaryColor={primaryColor}
+            />
+          )}
           <Button
             onClick={() => router.refresh()}
             className="mt-6 h-10 rounded-xl px-6 text-xs font-bold text-white"
@@ -426,6 +502,52 @@ export function BookingForm({
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+function ManualPaymentInstructions({
+  method,
+  amount,
+  primaryColor,
+}: {
+  method: PaymentMethod | null;
+  amount: number;
+  primaryColor: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const account = [method?.account_name, method?.account_number].filter(Boolean).join(" - ");
+
+  async function copyAccount() {
+    if (!account) return;
+    await navigator.clipboard?.writeText(account);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <div className="mt-4 w-full rounded-2xl border border-black/[0.08] bg-white p-4 text-left">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black text-[#171a16]">{method?.name ?? "Payment at venue"}</p>
+          <p className="mt-1 text-sm font-black" style={{ color: primaryColor }}>
+            Amount: {formatCurrency(amount)}
+          </p>
+        </div>
+        {account && (
+          <button type="button" onClick={copyAccount} className="rounded-lg border border-black/[0.08] px-2 py-1 text-[10px] font-bold text-[#53606b]">
+            <Copy className="mr-1 inline h-3 w-3" />
+            {copied ? "Copied" : "Copy"}
+          </button>
+        )}
+      </div>
+      {method?.qr_image_url && (
+        <img src={method.qr_image_url} alt={`${method.name} QR code`} className="mx-auto mt-3 h-40 w-40 rounded-xl border border-black/[0.08] object-contain" />
+      )}
+      {account && <p className="mt-3 text-xs font-semibold text-[#171a16]">{account}</p>}
+      <p className="mt-2 text-xs font-medium leading-5 text-[#6e716b]">
+        {method?.instructions || "Please settle the payment using the venue's preferred method and keep your receipt for verification."}
+      </p>
     </div>
   );
 }

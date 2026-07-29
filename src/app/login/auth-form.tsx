@@ -38,11 +38,12 @@ export function AuthForm({
         router.push(redirectTo ?? "/dashboard");
         router.refresh();
       } else {
+        const next = redirectTo ?? "/onboarding";
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
           },
         });
         if (error) throw error;
@@ -113,7 +114,12 @@ export function AuthForm({
         type="button"
         variant="outline"
         className="w-full"
-        onClick={() => supabase.auth.signInWithOAuth({ provider: "google" })}
+        onClick={() => supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo ?? (mode === "signup" ? "/onboarding" : "/dashboard"))}`,
+          },
+        })}
       >
         Continue with Google
       </Button>

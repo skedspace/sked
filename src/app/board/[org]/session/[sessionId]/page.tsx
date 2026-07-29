@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState, useRef } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { BoardLayout, type BoardMeta } from "@/components/board/board-layout";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { ActiveCourts, type CourtData, type CourtPlayer } from "@/components/board/active-courts";
@@ -81,7 +81,7 @@ export default function SharedBoardPage({
       const res = await fetch(`/api/board/share?token=${encodeURIComponent(token)}`);
       if (!res.ok) { setValid(false); return; }
       const data = await res.json();
-      setValid(data.sessionId === sessionId && data.orgId === org);
+      setValid(data.sessionId === sessionId && (data.orgSlug ?? data.orgId) === org);
     } catch { setValid(false); }
   }, [token, sessionId, org]);
 

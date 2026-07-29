@@ -15,7 +15,7 @@ CREATE TABLE share_tokens (
 
 CREATE INDEX idx_share_tokens_token ON share_tokens(token);
 CREATE INDEX idx_share_tokens_org ON share_tokens(org_id);
-CREATE INDEX idx_share_tokens_expires ON share_tokens(expires_at) WHERE expires_at > now();
+CREATE INDEX idx_share_tokens_expires ON share_tokens(expires_at);
 
 ALTER TABLE share_tokens ENABLE ROW LEVEL SECURITY;
 
@@ -27,4 +27,11 @@ CREATE POLICY public_read_share_tokens ON share_tokens
 -- Allow authenticated inserts (dashboard users creating share links)
 CREATE POLICY auth_insert_share_tokens ON share_tokens
     FOR INSERT
-    WITH CHECK (true);
+    WITH CHECK (
+        org_id IN (
+            SELECT org_id FROM org_members WHERE user_id = auth.uid()
+        )
+        AND session_id IN (
+            SELECT id FROM live_sessions WHERE live_sessions.org_id = share_tokens.org_id
+        )
+    );

@@ -26,13 +26,23 @@ import {
 } from "lucide-react";
 
 export function DashboardSidebar({
-  isOwner: _isOwner,
+  isOwner,
   orgId,
+  orgSlug,
+  orgName,
 }: {
   isOwner: boolean;
   orgId: string;
+  orgSlug: string;
+  orgName: string;
 }) {
   const pathname = usePathname();
+  const accountInitials = (orgName || "SK")
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === href;
@@ -76,7 +86,7 @@ export function DashboardSidebar({
     {
       label: "Venue & Public",
       items: [
-        { href: `/board/${orgId}`, label: "Board View", icon: Monitor },
+        { href: `/board/${orgSlug || orgId}`, label: "Board View", icon: Monitor },
         {
           href: `/dashboard/settings/board`,
           label: "Board Settings",
@@ -210,17 +220,17 @@ export function DashboardSidebar({
       <button
         type="button"
         className="mt-5 flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl border border-[#dfeabf] bg-[#f5fadf] p-2.5 text-left transition-colors hover:bg-[#eff8cf] focus-visible:ring-2 focus-visible:ring-[#65ad00] focus-visible:outline-none sm:justify-start"
-        aria-label="Open Maya Studio account menu"
+        aria-label={`Open ${orgName || "organization"} account menu`}
       >
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#171a16] text-[11px] font-black text-white">
-          MS
+          {accountInitials}
         </span>
         <span className="hidden min-w-0 flex-1 sm:block">
           <span className="block truncate text-xs font-black text-[#171a16]">
-            Maya Studio
+            {orgName || "Organization"}
           </span>
           <span className="text-muted-foreground mt-0.5 block text-[10px]">
-            Admin
+            {isOwner ? "Owner" : "Staff"}
           </span>
         </span>
         <ChevronDown className="text-muted-foreground hidden h-4 w-4 sm:block" />

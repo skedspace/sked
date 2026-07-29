@@ -4,6 +4,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PostHogProvider } from "@/components/shared/posthog-provider";
 import { CookieConsent } from "@/components/shared/cookie-consent";
+import { ServiceWorkerRegister } from "@/components/shared/service-worker-register";
 
 export const metadata: Metadata = {
   title: {
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
   },
   description:
     "A beautiful business page and smart scheduler, together in one link.",
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({
@@ -26,6 +28,7 @@ export default function RootLayout({
           <PostHogProvider>
             <ErrorBoundary>{children}</ErrorBoundary>
             <CookieConsent />
+            <ServiceWorkerRegister />
           </PostHogProvider>
         </TooltipProvider>
       </body>

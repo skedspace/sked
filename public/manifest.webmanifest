@@ -1,0 +1,18 @@
+{
+  "name": "SKED Dashboard",
+  "short_name": "SKED",
+  "description": "Dashboard and live board display for SKED venues.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fbfaf7",
+  "theme_color": "#151713",
+  "icons": [
+    {
+      "src": "/images/pickleball.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

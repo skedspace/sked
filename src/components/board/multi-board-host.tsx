@@ -39,6 +39,7 @@ export interface MultiBoardHostProps {
   orgName: string;
   sessionName?: string;
   sponsors?: SponsorItem[];
+  statusText?: string;
   className?: string;
 }
 
@@ -256,6 +257,7 @@ export function MultiBoardHost({
   orgName,
   sessionName,
   sponsors,
+  statusText = "Auto-refreshes every 10s - Multi-board mode",
   className,
 }: MultiBoardHostProps) {
   const data = { courts, queue, tournament, bracket: bracket ?? [] };
@@ -324,8 +326,15 @@ export function MultiBoardHost({
       <AutoHideFooter>
         <div className="border-t border-white/10 px-4 py-2 sm:px-6 sm:py-3">
           <div className="flex items-center justify-between text-xs text-white/25">
+            {statusText ? (
+              <span>{statusText}</span>
+            ) : (
+              <>
             <span>Auto-refreshes every 10s · Multi-board mode</span>
             <span>v0.1 · Board View</span>
+              </>
+            )}
+            <span>v0.1 - Board View</span>
           </div>
         </div>
       </AutoHideFooter>

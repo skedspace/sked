@@ -58,17 +58,27 @@ SECURITY DEFINER
 AS $$
 BEGIN
     RETURN QUERY
+    WITH next_entry AS (
+        SELECT id
+        FROM waitlist_entries
+        WHERE org_id = p_org_id
+          AND resource_id = p_resource_id
+          AND service_id = p_service_id
+          AND desired_date = p_desired_date
+          AND desired_start_time = p_desired_start_time
+          AND status = 'waiting'
+        ORDER BY created_at ASC
+        LIMIT 1
+    )
     UPDATE waitlist_entries
     SET status = 'notified',
         notified_at = now()
-    WHERE org_id = p_org_id
-      AND resource_id = p_resource_id
-      AND service_id = p_service_id
-      AND desired_date = p_desired_date
-      AND desired_start_time = p_desired_start_time
-      AND status = 'waiting'
-    ORDER BY created_at ASC
-    LIMIT 1
-    RETURNING id, customer_name, customer_email, customer_phone;
+    FROM next_entry
+    WHERE waitlist_entries.id = next_entry.id
+    RETURNING
+        waitlist_entries.id,
+        waitlist_entries.customer_name,
+        waitlist_entries.customer_email,
+        waitlist_entries.customer_phone;
 END;
 $$;

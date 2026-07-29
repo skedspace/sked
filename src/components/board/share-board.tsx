@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 interface ShareBoardProps {
   orgId: string;
+  orgSlug: string;
   sessionId?: string;
   className?: string;
 }
@@ -15,7 +16,6 @@ interface ShareBoardProps {
 /* ── Minimal QR Code Generator ── */
 
 function generateQRMatrix(text: string): boolean[][] {
-  const isNumeric = /^\d+$/.test(text);
   const data = text;
   const len = data.length;
   let version = 2;
@@ -124,6 +124,7 @@ function QRCodeSVG({ data, size = 160, className }: { data: string; size?: numbe
 
 export function ShareBoard({
   orgId,
+  orgSlug,
   sessionId = "live",
   className,
 }: ShareBoardProps) {
@@ -142,7 +143,7 @@ export function ShareBoard({
       const res = await fetch("/api/board/share", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId, sessionId }),
+        body: JSON.stringify({ orgId, orgSlug, sessionId }),
       });
       if (!res.ok) throw new Error("Failed to create share link");
       const data = await res.json();
@@ -152,7 +153,7 @@ export function ShareBoard({
     } finally {
       setCreating(false);
     }
-  }, [orgId, sessionId, shareUrl, creating]);
+  }, [orgId, orgSlug, sessionId, shareUrl, creating]);
 
   const toggleOpen = useCallback(() => {
     const next = !open;

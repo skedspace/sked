@@ -4,6 +4,8 @@
 --
 -- DOWN: Re-run 00019's function
 
+DROP FUNCTION IF EXISTS get_public_page(TEXT);
+
 CREATE OR REPLACE FUNCTION get_public_page(page_slug TEXT)
 RETURNS TABLE (
     org_id UUID,

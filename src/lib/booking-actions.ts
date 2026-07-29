@@ -1,8 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { randomUUID } from "crypto";
 
 export type BookingResult =
@@ -21,6 +21,7 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
   const customerPhone = formData.get("phone") as string;
   const orgId = formData.get("org_id") as string;
   const priceCents = parseInt(formData.get("price_cents") as string, 10);
+  const paymentMethodId = String(formData.get("payment_method_id") ?? "");
   const idempotencyKey = formData.get("idempotency_key") as string || randomUUID();
 
   if (!serviceId || !resourceId || !startTime || !customerName || !orgId) {
@@ -185,6 +186,32 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
 
     // 5. Increment usage counter and log audit
     await supabase.rpc("increment_usage", { p_org_id: orgId });
+    if (priceCents > 0) {
+      const admin = createAdminClient();
+      const { data: settings } = await admin
+        .from("org_settings")
+        .select("payment_methods")
+        .eq("org_id", orgId)
+        .maybeSingle();
+      const methods = Array.isArray(settings?.payment_methods)
+        ? (settings.payment_methods as Array<Record<string, unknown>>)
+        : [];
+      const selected = methods.find((method) => method.id === paymentMethodId);
+      const methodName = typeof selected?.name === "string" ? selected.name : "Manual payment";
+      await admin.from("payments").insert({
+        booking_id: booking.id,
+        org_id: orgId,
+        customer_id: customerId,
+        provider: "manual",
+        provider_ref: `manual-${booking.id}`,
+        type: "full",
+        amount_cents: priceCents,
+        status: "pending",
+        category: "booking",
+        payment_method: methodName,
+        description: "Awaiting customer manual payment verification.",
+      });
+    }
     await supabase.from("audit_log").insert({
       org_id: orgId,
       actor_id: (await supabase.auth.getSession()).data.session?.user.id ?? "00000000-0000-0000-0000-000000000000",

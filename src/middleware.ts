@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createMiddlewareClient } from "@/lib/supabase/middleware";
+import { isDevAuthEnabled } from "@/lib/dev-auth";
 
-const DEV_AUTH_ENABLED = process.env.NODE_ENV !== "production";
+const DEV_AUTH_ENABLED = isDevAuthEnabled();
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

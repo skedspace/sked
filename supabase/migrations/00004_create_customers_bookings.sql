@@ -3,6 +3,8 @@
 
 -- DOWN: drop table bookings; drop table customers;
 
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
 -- 1. Customers
 CREATE TABLE customers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -51,7 +53,7 @@ CREATE INDEX idx_bookings_resource_time ON bookings(resource_id, time_range)
     WHERE status IN ('held', 'pending', 'confirmed');
 CREATE INDEX idx_bookings_org_status ON bookings(org_id, status);
 CREATE INDEX idx_bookings_customer ON bookings(customer_id);
-CREATE INDEX idx_bookings_date ON bookings(org_id, (lower(time_range)::date));
+CREATE INDEX idx_bookings_date ON bookings(org_id, ((lower(time_range) AT TIME ZONE 'UTC')::date));
 
 -- 3. RLS
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;

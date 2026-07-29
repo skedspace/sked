@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AuthForm } from "./auth-form";
+import { isDevAuthEnabled } from "@/lib/dev-auth";
 
 export default async function LoginPage({
   searchParams,
@@ -20,7 +21,7 @@ export default async function LoginPage({
   }
 
   // Dev mode: skip login entirely
-  if (process.env.NODE_ENV !== "production") {
+  if (isDevAuthEnabled()) {
     redirect("/dashboard");
   }
 

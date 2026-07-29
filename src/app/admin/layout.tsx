@@ -1,41 +1,26 @@
-import Link from "next/link";
+import type { Metadata } from "next";
+import { notFound, redirect } from "next/navigation";
+import { getCurrentAdminAccess } from "@/lib/admin-access";
+import { AdminSidebar } from "./admin-sidebar";
+import "./admin.css";
 
-export default async function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  // Admin uses the service role client which bypasses RLS.
-  // No auth check needed — the admin routes are protected by
-  // the middleware in production (or DEV_AUTH bypass in dev).
+export const metadata: Metadata = {
+  title: "Command Center",
+  description: "SKED platform administration",
+};
+
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const access = await getCurrentAdminAccess();
+  if (!access.signedIn) redirect("/login?redirect=/admin");
+  if (!access.isSuperAdmin) notFound();
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-56 border-r bg-ink p-4 text-white">
-        <Link href="/admin" className="mb-6 block text-lg font-bold">
-          SKED Admin
-        </Link>
-        <nav className="space-y-1">
-          <AdminNavItem href="/admin" label="Overview" />
-          <AdminNavItem href="/admin/organizations" label="Organizations" />
-          <AdminNavItem href="/admin/users" label="Users" />
-          <AdminNavItem href="/admin/bookings" label="Bookings" />
-          <hr className="my-3 border-white/20" />
-          <AdminNavItem href="/dashboard" label="← Back to dashboard" />
-        </nav>
-      </aside>
-      <main className="flex-1 bg-paper p-8">{children}</main>
+    <div className="admin-shell">
+      <AdminSidebar
+        userName={access.user?.user_metadata?.full_name as string | undefined}
+        userEmail={access.user?.email}
+      />
+      <main className="admin-main">{children}</main>
     </div>
-  );
-}
-
-function AdminNavItem({ href, label }: { href: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="block rounded-md px-3 py-2 text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-    >
-      {label}
-    </Link>
   );
 }

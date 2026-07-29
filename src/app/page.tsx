@@ -1,9 +1,10 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import {
   ArrowRight,
   CalendarCheck,
   CalendarDays,
   Check,
+  CheckCircle2,
   Clock3,
   Globe2,
   HelpCircle,
@@ -14,8 +15,11 @@ import {
   WandSparkles,
 } from "lucide-react";
 import { BLOG_POSTS } from "@/lib/blog";
+import { PLANS } from "@/lib/plans";
+import type { Plan, PlanId } from "@/lib/plans";
+import { readPlatformPricingConfig } from "@/lib/pricing-config";
+import { AnnualSavingsModal } from "@/app/pricing/annual-savings-modal";
 import { TestimonialsColumn } from "@/components/ui/testimonials-columns-1";
-import { FeatureAccordion } from "@/components/ui/accordion-feature-section";
 
 const features = [
   {
@@ -141,6 +145,140 @@ const testimonialsData = [
 const firstColumn = testimonialsData.slice(0, 3);
 const secondColumn = testimonialsData.slice(3, 6);
 const thirdColumn = testimonialsData.slice(6, 9);
+
+type PricingConfig = {
+  monthlyPriceCents: number;
+  trialDays: number;
+  oneYearDiscount: number;
+  twoYearDiscount: number;
+  threeYearDiscount: number;
+  features: string[];
+  showPlans: boolean;
+};
+
+const PLAN_META: Record<PlanId, { popular?: boolean }> = {
+  trial: {},
+  monthly: { popular: true },
+};
+
+function formatPrice(cents: number): { whole: string; decimal: string } {
+  const pesos = cents / 100;
+  return {
+    whole: Math.floor(pesos).toLocaleString("en-PH"),
+    decimal: (pesos % 1).toFixed(2).slice(1),
+  };
+}
+
+async function getPricingConfig(): Promise<PricingConfig> {
+  const config = await readPlatformPricingConfig();
+  return {
+    monthlyPriceCents: config.monthlyPriceCents,
+    trialDays: config.trialDays,
+    oneYearDiscount: config.oneYearDiscount,
+    twoYearDiscount: config.twoYearDiscount,
+    threeYearDiscount: config.threeYearDiscount,
+    features: config.features,
+    showPlans: config.showPlansToCustomers,
+  };
+}
+
+function getLandingPlans(pricingConfig: PricingConfig): Plan[] {
+  return pricingConfig.showPlans
+    ? [
+        {
+          ...PLANS.trial,
+          trialDays: pricingConfig.trialDays,
+          description: `${pricingConfig.trialDays}-day free trial. No card required.`,
+        },
+        {
+          ...PLANS.monthly,
+          priceMonthlyCents: pricingConfig.monthlyPriceCents,
+          highlights: pricingConfig.features,
+        },
+      ]
+    : [];
+}
+
+function PricingCard({ plan }: { plan: Plan }) {
+  const meta = PLAN_META[plan.id];
+  const price = formatPrice(plan.priceMonthlyCents);
+  const isPopular = meta.popular;
+  const isTrial = plan.id === "trial";
+
+  return (
+    <article
+      className={`relative flex flex-col rounded-[24px] border p-8 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_24px_60px_rgba(23,26,22,0.1)] ${
+        isPopular
+          ? "border-[#b9f34b] bg-[#fbfaf4] shadow-[0_8px_32px_rgba(185,243,75,0.18)]"
+          : "border-black/[0.09] bg-white"
+      }`}
+    >
+      {isPopular && (
+        <span className="absolute -top-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-[#b9f34b] px-4 py-1 text-[11px] font-black tracking-[0.12em] text-[#171a16] uppercase shadow-sm">
+          <Sparkles className="h-3 w-3" />
+          Most popular
+        </span>
+      )}
+
+      <div className="mb-6">
+        <h3 className="text-xl font-bold">{plan.name}</h3>
+        <p className="text-muted-foreground mt-1 text-sm">{plan.description}</p>
+      </div>
+
+      <div className="mb-8">
+        {plan.priceMonthlyCents === 0 ? (
+          <div>
+            <span className="text-5xl font-black tracking-[-0.04em]">Free</span>
+            <p className="text-muted-foreground mt-1 text-sm">
+              for {plan.trialDays} days &middot; no card required
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-baseline gap-0.5">
+            <span className="text-muted-foreground text-sm font-semibold">
+              ₱
+            </span>
+            <span className="text-5xl font-black tracking-[-0.04em]">
+              {price.whole}
+            </span>
+            <span className="text-muted-foreground text-lg font-semibold">
+              {price.decimal}
+            </span>
+            <span className="text-muted-foreground ml-1 text-sm font-medium">
+              /mo
+            </span>
+          </div>
+        )}
+      </div>
+
+      <ul className="mb-10 space-y-3">
+        {plan.highlights.map((item) => (
+          <li key={item} className="flex items-start gap-3 text-sm leading-6">
+            <CheckCircle2
+              className="mt-0.5 h-4 w-4 shrink-0 text-[#5f8b12]"
+              strokeWidth={2.5}
+            />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-auto">
+        <Link
+          href="/signup"
+          className={`group inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-offset-4 focus-visible:outline-none ${
+            isPopular
+              ? "bg-[#171a16] text-white shadow-[0_6px_16px_rgba(23,26,22,0.15)] hover:bg-black hover:shadow-[0_10px_24px_rgba(23,26,22,0.2)] focus-visible:ring-[#171a16]"
+              : "text-foreground border border-black/15 bg-white/50 hover:border-black/30 hover:bg-white focus-visible:ring-black/30"
+          }`}
+        >
+          {isTrial ? "Start free trial" : "Subscribe now"}
+          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      </div>
+    </article>
+  );
+}
 
 function BrandMark({ inverted = false }: { inverted?: boolean }) {
   return (
@@ -416,7 +554,7 @@ function MarketingHero() {
         </div>
 
         <div className="relative min-h-[520px] lg:min-h-[640px]">
-          <div className="hidden lg:block absolute top-12 right-4 w-[min(15rem,75vw)] rounded-2xl border border-white/20 bg-white/[0.08] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
+          <div className="absolute top-12 right-4 hidden w-[min(15rem,75vw)] rounded-2xl border border-white/20 bg-white/[0.08] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.32)] backdrop-blur-2xl lg:block">
             <div className="flex items-center gap-3">
               <CalendarDays className="h-6 w-6 text-[#b9f34b]" />
               <p className="text-sm font-semibold text-white/88">
@@ -444,7 +582,7 @@ function MarketingHero() {
             </div>
           </div>
 
-          <div className="hidden lg:block absolute top-1/2 right-4 w-[min(15rem,75vw)] -translate-y-1/2 rounded-2xl border border-white/20 bg-white/[0.08] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
+          <div className="absolute top-1/2 right-4 hidden w-[min(15rem,75vw)] -translate-y-1/2 rounded-2xl border border-white/20 bg-white/[0.08] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.32)] backdrop-blur-2xl lg:block">
             <div className="flex items-center gap-3">
               <Users className="h-6 w-6 text-[#b9f34b]" />
               <p className="text-sm font-semibold text-white/88">
@@ -470,7 +608,7 @@ function MarketingHero() {
             </div>
           </div>
 
-          <div className="hidden lg:block absolute right-4 bottom-16 w-[min(15rem,75vw)] rounded-2xl border border-white/20 bg-white/[0.08] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
+          <div className="absolute right-4 bottom-16 hidden w-[min(15rem,75vw)] rounded-2xl border border-white/20 bg-white/[0.08] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.32)] backdrop-blur-2xl lg:block">
             <div className="flex items-center gap-3">
               <CalendarCheck className="h-6 w-6 text-[#b9f34b]" />
               <div>
@@ -514,7 +652,10 @@ function MarketingHero() {
   );
 }
 
-export default function HomePage() {
+export default async function HomePage() {
+  const pricingConfig = await getPricingConfig();
+  const plans = getLandingPlans(pricingConfig);
+
   return (
     <div className="home-shell bg-background flex min-h-screen flex-col overflow-hidden">
       <header className="hidden">
@@ -631,21 +772,19 @@ export default function HomePage() {
           </div>
         </section>
 
-
-
         <section id="features" className="scroll-mt-24">
           <div className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
-            <div className="flex items-center gap-2 text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase mb-3">
+            <div className="mb-3 flex items-center gap-2 text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase">
               <WandSparkles className="h-4 w-4" />
               Everything in sync
             </div>
 
-            <h2 className="text-4xl leading-[0.98] font-black tracking-[-0.055em] text-balance sm:text-6xl max-w-3xl mb-4">
+            <h2 className="mb-4 max-w-3xl text-4xl leading-[0.98] font-black tracking-[-0.055em] text-balance sm:text-6xl">
               Built to make booking feel effortless.
             </h2>
-            <p className="text-muted-foreground max-w-2xl text-lg leading-8 mb-14">
-              The page, calendar, and player journey all work as one -- so
-              there is less to manage and nothing to stitch together.
+            <p className="text-muted-foreground mb-14 max-w-2xl text-lg leading-8">
+              The page, calendar, and player journey all work as one -- so there
+              is less to manage and nothing to stitch together.
             </p>
 
             <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
@@ -657,7 +796,7 @@ export default function HomePage() {
                 {features.map((feature, index) => (
                   <div
                     key={feature.number}
-                    className="group flex items-center gap-4 rounded-2xl border border-black/[0.06] bg-white p-4 transition-all duration-200 hover:border-black/[0.14] hover:shadow-[0_8px_24px_rgba(23,26,22,0.08)] hover:translate-x-1"
+                    className="group flex items-center gap-4 rounded-2xl border border-black/[0.06] bg-white p-4 transition-all duration-200 hover:translate-x-1 hover:border-black/[0.14] hover:shadow-[0_8px_24px_rgba(23,26,22,0.08)]"
                   >
                     <span
                       className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base ${
@@ -689,7 +828,7 @@ export default function HomePage() {
         <section id="how-it-works" className="scroll-mt-20 bg-[#e9e8df]">
           <div className="mx-auto grid w-full max-w-7xl gap-14 px-5 py-24 sm:px-8 sm:py-32 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24">
             <div className="lg:sticky lg:top-28 lg:self-start">
-              <p className="flex items-center gap-2 text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase mb-4">
+              <p className="mb-4 flex items-center gap-2 text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase">
                 <Clock3 className="h-4 w-4" />
                 How it works
               </p>
@@ -704,17 +843,23 @@ export default function HomePage() {
 
             <div className="relative">
               {/* Vertical connecting line */}
-              <div className="absolute left-[19px] top-3 bottom-3 w-px bg-black/10" aria-hidden />
+              <div
+                className="absolute top-3 bottom-3 left-[19px] w-px bg-black/10"
+                aria-hidden
+              />
 
               <ol className="space-y-0">
                 {steps.map((step, index) => (
-                  <li key={step.number} className="relative flex gap-6 pb-12 last:pb-0">
+                  <li
+                    key={step.number}
+                    className="relative flex gap-6 pb-12 last:pb-0"
+                  >
                     {/* Numbered circle */}
                     <span
                       className={`relative z-10 flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-xs font-black ${
                         index === 0
                           ? "bg-[#b9f34b] text-[#171a16]"
-                          : "bg-white text-[#171a16] border border-black/10"
+                          : "border border-black/10 bg-white text-[#171a16]"
                       }`}
                     >
                       {step.number}
@@ -735,11 +880,11 @@ export default function HomePage() {
         </section>
 
         {/* ── Testimonials ── */}
-        <section className="bg-white relative overflow-hidden">
+        <section className="relative overflow-hidden bg-white">
           <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
-            <div className="flex flex-col items-center justify-center max-w-[540px] mx-auto">
+            <div className="mx-auto flex max-w-[540px] flex-col items-center justify-center">
               <div className="flex justify-center">
-                <div className="border py-1 px-4 rounded-lg text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase">
+                <div className="rounded-lg border px-4 py-1 text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase">
                   Testimonials
                 </div>
               </div>
@@ -751,10 +896,18 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="flex justify-center gap-6 mt-14 [mask-image:linear-gradient(to_bottom,transparent,black_25%,black_75%,transparent)] max-h-[740px] overflow-hidden">
+            <div className="mt-14 flex max-h-[740px] justify-center gap-6 overflow-hidden [mask-image:linear-gradient(to_bottom,transparent,black_25%,black_75%,transparent)]">
               <TestimonialsColumn testimonials={firstColumn} duration={15} />
-              <TestimonialsColumn testimonials={secondColumn} className="hidden md:block" duration={19} />
-              <TestimonialsColumn testimonials={thirdColumn} className="hidden lg:block" duration={17} />
+              <TestimonialsColumn
+                testimonials={secondColumn}
+                className="hidden md:block"
+                duration={19}
+              />
+              <TestimonialsColumn
+                testimonials={thirdColumn}
+                className="hidden lg:block"
+                duration={17}
+              />
             </div>
           </div>
         </section>
@@ -789,7 +942,7 @@ export default function HomePage() {
                 },
                 {
                   q: "Can I take payments through SKED?",
-                  a: "Yes. You can collect deposits or full payments via card or GCash through our PayMongo integration. Set it per court booking, clinic, or event — free, deposit, or full payment.",
+                  a: "Yes. Each organization can show its own manual payment instructions, including GCash QR, bank transfer details, cash, or other preferred methods.",
                 },
                 {
                   q: "Is there a mobile app?",
@@ -891,22 +1044,53 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── Features ── */}
-        <section className="bg-[#e9e8df]">
+        {/* Pricing */}
+        <section id="pricing" className="scroll-mt-24 bg-[#e9e8df]">
           <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
-            <div className="flex flex-col items-center text-center mb-6">
-              <p className="flex items-center gap-2 text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase mb-4">
-                <WandSparkles className="h-4 w-4" />
-                Everything your court needs
+            <div className="mx-auto max-w-2xl text-center">
+              <p className="mb-4 flex items-center justify-center gap-2 text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase">
+                <span className="h-px w-6 bg-[#4e7410]/30" />
+                Pricing
+                <span className="h-px w-6 bg-[#4e7410]/30" />
               </p>
-              <h2 className="max-w-2xl text-4xl leading-[0.98] font-black tracking-[-0.055em] text-balance sm:text-5xl">
-                Run your pickleball facility without the headache.
+              <h2 className="text-4xl leading-[0.98] font-black tracking-[-0.055em] text-balance sm:text-5xl">
+                Try free for {pricingConfig.trialDays} days.
               </h2>
-              <p className="text-muted-foreground mt-5 max-w-lg text-lg leading-8 text-center">
-                From court booking to member management — SKED handles the hard part.
+              <p className="text-muted-foreground mt-5 text-lg leading-8">
+                No credit card required. Subscribe when you&apos;re ready.
               </p>
             </div>
-            <FeatureAccordion />
+
+            <div className="mx-auto mt-14 grid max-w-3xl gap-6 lg:grid-cols-2">
+              {plans.length > 0 ? (
+                plans.map((plan) => <PricingCard key={plan.id} plan={plan} />)
+              ) : (
+                <article className="rounded-[24px] border border-black/[0.09] bg-white p-8 text-center">
+                  <h3 className="text-xl font-bold">
+                    Pricing is currently private
+                  </h3>
+                  <p className="text-muted-foreground mt-2 text-sm">
+                    Contact SKED to discuss the right setup for your
+                    organization.
+                  </p>
+                  <Link
+                    href="/signup"
+                    className="mt-6 inline-flex rounded-full bg-[#171a16] px-6 py-3 text-sm font-semibold text-white"
+                  >
+                    Contact us
+                  </Link>
+                </article>
+              )}
+            </div>
+
+            {plans.length > 0 && (
+              <AnnualSavingsModal
+                monthlyPriceCents={pricingConfig.monthlyPriceCents}
+                oneYearDiscount={pricingConfig.oneYearDiscount}
+                twoYearDiscount={pricingConfig.twoYearDiscount}
+                threeYearDiscount={pricingConfig.threeYearDiscount}
+              />
+            )}
           </div>
         </section>
 

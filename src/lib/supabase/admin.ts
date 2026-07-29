@@ -1,39 +1,16 @@
-import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 
 /**
- * Creates a Supabase admin client using the service_role key.
- * ONLY use in:
- *  - Webhook handlers (payment callbacks)
- *  - Cron job functions
- *  - Admin-only server actions (carefully reviewed)
+ * Server-only Supabase client with service-role access.
  *
- * Never expose to the client or use in user-facing routes.
+ * The service role does not use a browser session, so binding it to Next.js
+ * cookies only adds latency and breaks on async request APIs in Next 15.
  */
 export function createAdminClient() {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { cookies } = require("next/headers");
-  const cookieStore = cookies();
-
-  return createServerClient(
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(
-          cookiesToSet: {
-            name: string;
-            value: string;
-            options?: Parameters<typeof cookieStore.set>[2];
-          }[],
-        ) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options),
-          );
-        },
-      },
       auth: {
         autoRefreshToken: false,
         persistSession: false,

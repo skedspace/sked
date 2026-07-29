@@ -9,14 +9,14 @@
 
 -- 1. Add usage limit columns to organizations
 ALTER TABLE organizations
-    ADD COLUMN IF NOT EXISTS booking_limit_monthly INTEGER NOT NULL DEFAULT 50,
-    ADD COLUMN IF NOT EXISTS resource_limit INTEGER NOT NULL DEFAULT 5;
+    ADD COLUMN IF NOT EXISTS booking_limit_monthly INTEGER NOT NULL DEFAULT 99999,
+    ADD COLUMN IF NOT EXISTS resource_limit INTEGER NOT NULL DEFAULT 999;
 
 -- 2. Subscriptions table
 CREATE TABLE subscriptions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    plan TEXT NOT NULL CHECK (plan IN ('free', 'starter', 'pro')),
+    plan TEXT NOT NULL CHECK (plan IN ('trial', 'monthly')),
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled', 'expired')),
     current_period_start TIMESTAMPTZ NOT NULL DEFAULT now(),
     current_period_end TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '1 month'),
@@ -113,18 +113,9 @@ BEGIN
     FROM organizations o
     WHERE o.id = p_org_id;
 
-    -- Free plan check
-    IF v_plan = 'free' THEN
-        SELECT COALESCE(SUM(bookings_count), 0)
-        INTO v_current_usage
-        FROM monthly_usage
-        WHERE org_id = p_org_id
-          AND month = date_trunc('month', now())::date;
-
-        IF v_current_usage >= v_monthly_limit THEN
-            RETURN QUERY SELECT false, 'Monthly booking limit reached. Upgrade to continue accepting bookings.'::TEXT;
-            RETURN;
-        END IF;
+    -- Trial plan check — no limits during trial
+    IF v_plan = 'trial' THEN
+        -- Trial has unlimited bookings
     END IF;
 
     RETURN QUERY SELECT true, NULL::TEXT;

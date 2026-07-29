@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { orgId, sessionId } = body;
+    const { orgId, orgSlug, sessionId } = body;
 
     if (!orgId || !sessionId) {
       return NextResponse.json(
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const shareUrl = `${origin}/board/${orgId}/session/${sessionId}?token=${token}`;
+    const shareUrl = `${origin}/board/${orgSlug ?? orgId}/session/${sessionId}?token=${token}`;
 
     return NextResponse.json({
       token: data.token,
@@ -91,8 +91,15 @@ export async function GET(request: Request) {
     );
   }
 
+  const { data: organization } = await supabase
+    .from("organizations")
+    .select("slug")
+    .eq("id", data.org_id)
+    .maybeSingle();
+
   return NextResponse.json({
     orgId: data.org_id,
+    orgSlug: organization?.slug ?? data.org_id,
     sessionId: data.session_id,
     createdAt: data.created_at,
   });

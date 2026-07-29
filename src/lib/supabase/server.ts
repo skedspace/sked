@@ -1,5 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "@/lib/database.types";
+import { getDevPublicPagePreview } from "@/lib/dev-public-page-preview";
+import { isDevAuthEnabled } from "@/lib/dev-auth";
 
 type CookieToSet = {
   name: string;
@@ -7,7 +9,7 @@ type CookieToSet = {
   options: Record<string, unknown>;
 };
 
-const DEV_AUTH_ENABLED = process.env.NODE_ENV !== "production";
+const DEV_AUTH_ENABLED = isDevAuthEnabled();
 
 const MOCK_USER_ID = "00000000-0000-0000-0000-000000000001";
 const MOCK_ORG_ID = "00000000-0000-0000-0000-000000000001";
@@ -19,7 +21,7 @@ const mockSessionData = {
     email: "dev@sked.space",
     aud: "authenticated",
     role: "authenticated",
-    app_metadata: {},
+    app_metadata: { platform_role: "super_admin", account_status: "active" },
     user_metadata: {},
     created_at: new Date().toISOString(),
   },
@@ -62,7 +64,8 @@ function createMockClient() {
         },
       ],
       is_published: true,
-      plan: "free",
+      plan: "trial",
+      primary_color: "#72c914",
     },
     error: null,
   } as any;
@@ -75,6 +78,22 @@ function createMockClient() {
     const seedData: Record<string, any[]> = {
       org_members: [
         { org_id: MOCK_ORG_ID, user_id: MOCK_USER_ID, role: "owner" },
+      ],
+      organizations: [
+        { id: MOCK_ORG_ID, name: "Marco's Pickleball Courts", slug: MOCK_ORG_SLUG, plan: "trial" },
+      ],
+      pages: [
+        {
+          org_id: MOCK_ORG_ID,
+          theme: "default",
+          sections: [],
+          cover_url: null,
+          logo_url: null,
+          bio: "Premium courts, coaching, and open play for the local pickleball community.",
+          socials: {},
+          is_published: true,
+          primary_color: "#72c914",
+        },
       ],
       locations: [
         { id: "loc-1", org_id: MOCK_ORG_ID, name: "Main Branch", address: "123 Court St", is_active: true },
@@ -201,10 +220,22 @@ function createMockClient() {
     },
     from: (table: string) => makeChain(table === "org_members", table),
     rpc: (fn: string, args?: Record<string, unknown>) => {
+      const savedPreview =
+        fn === "get_public_page" && typeof args?.page_slug === "string"
+          ? getDevPublicPagePreview(args.page_slug)
+          : null;
       const result =
-        fn === "get_public_page" && args?.page_slug === MOCK_ORG_SLUG
-          ? mockPublicPageResult
-          : emptyResult;
+        savedPreview
+          ? {
+              data: {
+                ...savedPreview,
+                services: mockPublicPageResult.data.services,
+              },
+              error: null,
+            }
+          : fn === "get_public_page" && args?.page_slug === MOCK_ORG_SLUG
+            ? mockPublicPageResult
+            : emptyResult;
 
       return {
         single: async () => result,

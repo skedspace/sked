@@ -12,10 +12,8 @@ import {
   CreditCard,
   Edit3,
   Globe2,
-  Image,
   KeyRound,
   Languages,
-  Link2,
   Lock,
   LogOut,
   Mail,
@@ -26,14 +24,13 @@ import {
   ShieldCheck,
   Store,
   Trash2,
-  Upload,
   UserPlus,
   UserRound,
   UsersRound,
   WalletCards,
   Zap,
 } from "lucide-react";
-import { useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -69,9 +66,12 @@ type NotificationPreferences = {
 
 type PaymentMethod = {
   id: string;
-  provider: string;
-  type: string;
-  last4: string;
+  name: string;
+  type: "gcash" | "bank" | "cash" | "other";
+  account_name: string;
+  account_number: string;
+  instructions: string;
+  qr_image_url: string;
   status: "active" | "disabled";
   is_default: boolean;
 };
@@ -158,7 +158,6 @@ const TABS = [
   "Notifications",
   "Payment Methods",
   "Users & Roles",
-  "Integrations",
   "Security",
 ];
 
@@ -205,7 +204,26 @@ function settingsToForm(org: Organization, settings: OrgSettings): FormState {
       ...(settings.notification_preferences ?? {}),
     },
     payment_methods: Array.isArray(settings.payment_methods)
-      ? settings.payment_methods
+      ? settings.payment_methods.map((method) => {
+          const legacy = method as PaymentMethod & { provider?: string; last4?: string };
+          return {
+            id: legacy.id,
+            name: legacy.name ?? legacy.provider ?? "Manual payment",
+            type:
+              legacy.type === "gcash" ||
+              legacy.type === "bank" ||
+              legacy.type === "cash" ||
+              legacy.type === "other"
+                ? legacy.type
+                : "other",
+            account_name: legacy.account_name ?? "",
+            account_number: legacy.account_number ?? legacy.last4 ?? "",
+            instructions: legacy.instructions ?? "",
+            qr_image_url: legacy.qr_image_url ?? "",
+            status: legacy.status ?? "active",
+            is_default: Boolean(legacy.is_default),
+          };
+        })
       : [],
     integration_settings: {
       ...DEFAULT_INTEGRATIONS,
@@ -273,9 +291,12 @@ export function SettingsView({
   const [password, setPassword] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [methodDraft, setMethodDraft] = useState({
-    provider: "Visa",
-    type: "Card",
-    last4: "",
+    name: "GCash",
+    type: "gcash" as PaymentMethod["type"],
+    account_name: "",
+    account_number: "",
+    instructions: "",
+    qr_image_url: "",
   });
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const brandInitials = useMemo(() => initials(form.name), [form.name]);
@@ -290,13 +311,6 @@ export function SettingsView({
   ) {
     update("notification_preferences", {
       ...form.notification_preferences,
-      [key]: value,
-    });
-  }
-
-  function updateIntegration(key: keyof IntegrationSettings, value: boolean) {
-    update("integration_settings", {
-      ...form.integration_settings,
       [key]: value,
     });
   }
@@ -431,18 +445,48 @@ export function SettingsView({
     router.refresh();
   }
 
+  function readQrFile(file: File | null) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setStatus("Please upload an image file for the QR code.");
+      return;
+    }
+    if (file.size > 650_000) {
+      setStatus("QR image is too large. Please use an image under 650 KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setMethodDraft((draft) => ({
+        ...draft,
+        qr_image_url: typeof reader.result === "string" ? reader.result : "",
+      }));
+    };
+    reader.readAsDataURL(file);
+  }
+
   function addPaymentMethod(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const next: PaymentMethod = {
       id: `pm-${Date.now()}`,
-      provider: methodDraft.provider,
+      name: methodDraft.name.trim(),
       type: methodDraft.type,
-      last4: methodDraft.last4,
+      account_name: methodDraft.account_name.trim(),
+      account_number: methodDraft.account_number.trim(),
+      instructions: methodDraft.instructions.trim(),
+      qr_image_url: methodDraft.qr_image_url,
       status: "active",
       is_default: form.payment_methods.length === 0,
     };
     update("payment_methods", [...form.payment_methods, next]);
-    setMethodDraft({ provider: "Visa", type: "Card", last4: "" });
+    setMethodDraft({
+      name: "GCash",
+      type: "gcash",
+      account_name: "",
+      account_number: "",
+      instructions: "",
+      qr_image_url: "",
+    });
     setMethodOpen(false);
   }
 
@@ -517,7 +561,6 @@ export function SettingsView({
               editing={editing}
               setEditing={setEditing}
               update={update}
-              brandInitials={brandInitials}
             />
           )}
           {tab === "Business" && (
@@ -564,12 +607,6 @@ export function SettingsView({
               onDeleteInvitation={deleteInvitation}
               onRemoveMember={removeMember}
               onRoleSetting={updateRole}
-            />
-          )}
-          {tab === "Integrations" && (
-            <IntegrationsTab
-              integrations={form.integration_settings}
-              onChange={updateIntegration}
             />
           )}
           {tab === "Security" && (
@@ -639,45 +676,91 @@ export function SettingsView({
             onSubmit={addPaymentMethod}
           >
             <FieldSelect
-              id="method-provider"
-              label="Provider"
-              value={methodDraft.provider}
-              options={[
-                "Visa",
-                "Mastercard",
-                "GCash",
-                "PayPal",
-                "Cash",
-                "Bank",
-              ]}
-              onChange={(value) =>
-                setMethodDraft((draft) => ({ ...draft, provider: value }))
-              }
-            />
-            <FieldSelect
               id="method-type"
               label="Type"
               value={methodDraft.type}
-              options={["Card", "Wallet", "Cash", "Bank transfer"]}
+              options={["gcash", "bank", "cash", "other"]}
               onChange={(value) =>
-                setMethodDraft((draft) => ({ ...draft, type: value }))
+                setMethodDraft((draft) => ({
+                  ...draft,
+                  type: value as PaymentMethod["type"],
+                  name: value === "gcash" ? "GCash" : value === "bank" ? "Bank Transfer" : value === "cash" ? "Cash at Venue" : draft.name,
+                }))
               }
             />
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="method-last4">Last 4 or reference</Label>
+            <div className="space-y-2">
+              <Label htmlFor="method-name">Display name</Label>
               <Input
-                id="method-last4"
-                value={methodDraft.last4}
+                id="method-name"
+                value={methodDraft.name}
                 onChange={(event) =>
                   setMethodDraft((draft) => ({
                     ...draft,
-                    last4: event.target.value,
+                    name: event.target.value,
                   }))
                 }
-                maxLength={12}
-                placeholder="4242"
+                placeholder="GCash, BPI, Cash at venue"
                 required
               />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="method-account-name">Account name</Label>
+              <Input
+                id="method-account-name"
+                value={methodDraft.account_name}
+                onChange={(event) =>
+                  setMethodDraft((draft) => ({
+                    ...draft,
+                    account_name: event.target.value,
+                  }))
+                }
+                placeholder="Business or account holder name"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="method-account-number">Number or payment handle</Label>
+              <Input
+                id="method-account-number"
+                value={methodDraft.account_number}
+                onChange={(event) =>
+                  setMethodDraft((draft) => ({
+                    ...draft,
+                    account_number: event.target.value,
+                  }))
+                }
+                placeholder="09xx xxx xxxx, account number, or reference"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="method-instructions">Customer instructions</Label>
+              <textarea
+                id="method-instructions"
+                value={methodDraft.instructions}
+                onChange={(event) =>
+                  setMethodDraft((draft) => ({
+                    ...draft,
+                    instructions: event.target.value,
+                  }))
+                }
+                className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="Example: Send payment before your schedule and show the receipt at the venue."
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="method-qr">QR code image</Label>
+              <Input
+                id="method-qr"
+                type="file"
+                accept="image/*"
+                onChange={(event) => readQrFile(event.target.files?.[0] ?? null)}
+              />
+              {methodDraft.qr_image_url && (
+                <img
+                  src={methodDraft.qr_image_url}
+                  alt=""
+                  className="h-28 w-28 rounded-xl border border-black/[0.08] object-cover"
+                />
+              )}
             </div>
             <div className="flex justify-end gap-3 sm:col-span-2">
               <Button
@@ -768,23 +851,14 @@ function GeneralTab({
   editing,
   setEditing,
   update,
-  brandInitials,
 }: {
   form: FormState;
   editing: string | null;
   setEditing: (value: string | null) => void;
   update: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
-  brandInitials: string;
 }) {
   return (
     <>
-      <BrandingSection
-        form={form}
-        brandInitials={brandInitials}
-        editing={editing === "branding"}
-        onEdit={() => setEditing("branding")}
-        update={update}
-      />
       <BookingSection
         form={form}
         editing={editing === "booking"}
@@ -842,7 +916,7 @@ function BusinessTab({
           />
           <InfoTile
             label="Current Plan"
-            value={subscription?.plan ?? organization.plan ?? "free"}
+            value={subscription?.plan ?? organization.plan ?? "trial"}
             href="/dashboard/settings/plan"
           />
           <InfoTile
@@ -970,7 +1044,7 @@ function PaymentMethodsTab({
         {methods.length === 0 ? (
           <EmptyState
             title="No payment methods yet"
-            description="Add Visa, Mastercard, GCash, PayPal, cash or bank transfer options."
+            description="Add GCash QR, bank transfer, cash, or other manual payment instructions."
           />
         ) : (
           methods.map((method) => (
@@ -979,10 +1053,13 @@ function PaymentMethodsTab({
               className="grid gap-3 rounded-xl border border-black/[0.07] p-4 md:grid-cols-[1fr_auto_auto_auto] md:items-center"
             >
               <div>
-                <p className="font-black">{method.provider}</p>
+                <p className="font-black">{method.name}</p>
                 <p className="mt-1 text-sm text-[#626860]">
-                  {method.type} - {method.last4}
+                  {method.type} {method.account_number ? `- ${method.account_number}` : ""}
                 </p>
+                {method.instructions && (
+                  <p className="mt-1 line-clamp-2 text-xs text-[#7a8176]">{method.instructions}</p>
+                )}
               </div>
               <StatusPill
                 active={method.status === "active"}
@@ -1204,53 +1281,6 @@ function UsersRolesTab({
   );
 }
 
-function IntegrationsTab({
-  integrations,
-  onChange,
-}: {
-  integrations: IntegrationSettings;
-  onChange: (key: keyof IntegrationSettings, value: boolean) => void;
-}) {
-  const rows: Array<[keyof IntegrationSettings, string, string]> = [
-    [
-      "google_calendar",
-      "Google Calendar",
-      "Sync bookings with Google Calendar.",
-    ],
-    [
-      "outlook_calendar",
-      "Outlook Calendar",
-      "Sync bookings with Outlook Calendar.",
-    ],
-    ["stripe", "Stripe", "Accept card payments with Stripe."],
-    ["gcash", "GCash", "Track GCash/manual wallet payments."],
-    ["webhooks", "Webhooks", "Send booking events to external systems."],
-    ["public_api", "Public API", "Enable API access for custom integrations."],
-  ];
-  return (
-    <SettingsSection
-      id="integrations"
-      icon={<Link2 />}
-      title="Integrations"
-      description="Connect SKED with calendars, payments and operations tools."
-      editing={false}
-      onEdit={() => undefined}
-    >
-      <div className="grid gap-4 md:grid-cols-2">
-        {rows.map(([key, label, description]) => (
-          <SwitchCard
-            key={key}
-            label={label}
-            description={description}
-            checked={integrations[key]}
-            onChange={(value) => onChange(key, value)}
-          />
-        ))}
-      </div>
-    </SettingsSection>
-  );
-}
-
 function SecurityTab({
   security,
   onChange,
@@ -1403,115 +1433,7 @@ function BusinessInfoSection({
   );
 }
 
-function BrandingSection({
-  form,
-  brandInitials,
-  editing,
-  onEdit,
-  update,
-}: {
-  form: FormState;
-  brandInitials: string;
-  editing: boolean;
-  onEdit: () => void;
-  update: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
-}) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [logoUploading, setLogoUploading] = useState(false);
 
-  async function handleLogoUpload(file: File) {
-    setLogoUploading(true);
-    try {
-      const supabase = createClient();
-      const path = `org-logos/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from("logos")
-        .upload(path, file);
-      if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage.from("logos").getPublicUrl(path);
-      if (urlData?.publicUrl) {
-        update("logo_url", urlData.publicUrl);
-      }
-    } catch {
-      // upload failed silently – user can still paste a URL manually
-    } finally {
-      setLogoUploading(false);
-    }
-  }
-
-  return (
-    <SettingsSection
-      id="branding"
-      icon={<Image />}
-      title="Branding"
-      description="Customize how your brand appears in SKED."
-      editing={editing}
-      onEdit={onEdit}
-    >
-      <div className="grid gap-6 md:grid-cols-[240px_1fr_1fr]">
-        <div>
-          <p className="text-xs font-semibold text-[#626860]">Logo</p>
-          <div className="mt-3 flex items-center gap-4">
-            {form.logo_url ? (
-              <img
-                src={form.logo_url}
-                alt="Business logo"
-                className="h-14 w-14 rounded-xl object-cover"
-              />
-            ) : (
-              <span className="grid h-14 w-14 place-items-center rounded-xl bg-[#050604] text-lg font-black text-[#b9f34b]">
-                {brandInitials}
-              </span>
-            )}
-            <Button
-              variant="outline"
-              type="button"
-              disabled={logoUploading}
-              onClick={() => fileRef.current?.click()}
-            >
-              <Upload />
-              {logoUploading ? "Uploading..." : "Change logo"}
-            </Button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleLogoUpload(file);
-                e.target.value = "";
-              }}
-            />
-          </div>
-          {editing && (
-            <Input
-              className="mt-3"
-              value={form.logo_url}
-              onChange={(event) => update("logo_url", event.target.value)}
-              placeholder="https://..."
-            />
-          )}
-          <p className="mt-2 text-xs text-[#7b8077]">
-            Recommended: Square PNG, 512x512px
-          </p>
-        </div>
-        <ColorSetting
-          label="Primary Color"
-          value={form.primary_color}
-          editing={editing}
-          onChange={(value) => update("primary_color", value)}
-        />
-        <ColorSetting
-          label="Accent Color"
-          value={form.accent_color}
-          editing={editing}
-          onChange={(value) => update("accent_color", value)}
-        />
-      </div>
-    </SettingsSection>
-  );
-}
 
 function BookingSection({
   form,
@@ -1696,7 +1618,7 @@ function SettingsAside({
           href="/dashboard/settings/calendar"
           label="Calendar Settings"
         />
-        <QuickLink href="/dashboard/settings/embed" label="Integrations" />
+        <QuickLink href="/dashboard/settings/embed" label="Embed Widget" />
         <QuickLink href="/dashboard/settings/page" label="Public Page" />
       </SideCard>
       <SideCard icon={<UserRound />} title="Account">
@@ -1754,7 +1676,7 @@ function SettingsAside({
         <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
           <MiniStat
             label="Plan"
-            value={subscription?.plan ?? organization.plan ?? "free"}
+            value={subscription?.plan ?? organization.plan ?? "trial"}
           />
           <MiniStat label="Users" value={String(members.length)} />
         </div>
@@ -1843,35 +1765,6 @@ function TextSetting({
           {value || "Not set"}
         </p>
       )}
-    </div>
-  );
-}
-
-function ColorSetting({
-  label,
-  value,
-  editing,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  editing: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <p className="text-xs font-semibold text-[#626860]">{label}</p>
-      <div className="mt-3 flex items-center gap-3">
-        <input
-          aria-label={label}
-          type="color"
-          disabled={!editing}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-7 w-7 rounded-md border border-black/10 bg-transparent"
-        />
-        <span className="text-sm font-black">{value.toUpperCase()}</span>
-      </div>
     </div>
   );
 }

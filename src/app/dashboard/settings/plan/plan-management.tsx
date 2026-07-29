@@ -22,14 +22,15 @@ export function PlanManagement({
   currentPlan,
   subscription,
   usageCount,
+  monthlyPriceCents,
 }: {
   orgId: string;
   isOwner: boolean;
   currentPlan: string;
   subscription: Subscription;
   usageCount: number;
+  monthlyPriceCents: number;
 }) {
-  const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -40,6 +41,9 @@ export function PlanManagement({
   async function handleUpgrade(planId: PlanId) {
     setLoading(true);
     setError(null);
+    const periodStart = new Date();
+    const periodDays = planId === "trial" ? 14 : 30;
+    const periodEnd = new Date(periodStart.getTime() + periodDays * 24 * 60 * 60 * 1000);
 
     // Update org plan
     const { error: orgError } = await supabase
@@ -53,32 +57,73 @@ export function PlanManagement({
       return;
     }
 
-    // Upsert subscription record
-    if (subscription) {
-      await supabase
+    // Preserve each plan period so platform conversion and churn reporting
+    // remains cohort-accurate instead of losing the trial on upgrade.
+    if (subscription && subscription.plan !== planId) {
+      const { error: closeError } = await supabase
         .from("subscriptions")
         .update({
-          plan: planId,
-          status: "active",
-          current_period_start: new Date().toISOString(),
-          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          status: "canceled",
+          canceled_at: periodStart.toISOString(),
         })
         .eq("id", subscription.id);
-    } else {
-      await supabase.from("subscriptions").insert({
+
+      if (closeError) {
+        setError(closeError.message);
+        setLoading(false);
+        return;
+      }
+
+      const { error: insertError } = await supabase.from("subscriptions").insert({
         org_id: orgId,
         plan: planId,
         status: "active",
-        current_period_start: new Date().toISOString(),
-        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        current_period_start: periodStart.toISOString(),
+        current_period_end: periodEnd.toISOString(),
       });
+
+      if (insertError) {
+        setError(insertError.message);
+        setLoading(false);
+        return;
+      }
+    } else if (subscription) {
+      const { error: renewError } = await supabase
+        .from("subscriptions")
+        .update({
+          status: "active",
+          current_period_start: periodStart.toISOString(),
+          current_period_end: periodEnd.toISOString(),
+          canceled_at: null,
+        })
+        .eq("id", subscription.id);
+
+      if (renewError) {
+        setError(renewError.message);
+        setLoading(false);
+        return;
+      }
+    } else {
+      const { error: insertError } = await supabase.from("subscriptions").insert({
+        org_id: orgId,
+        plan: planId,
+        status: "active",
+        current_period_start: periodStart.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+      });
+
+      if (insertError) {
+        setError(insertError.message);
+        setLoading(false);
+        return;
+      }
     }
 
     setLoading(false);
     router.refresh();
   }
 
-  const planIds: PlanId[] = ["free", "starter", "pro"];
+  const planIds: PlanId[] = ["trial", "monthly"];
 
   return (
     <div className="space-y-8">
@@ -97,24 +142,11 @@ export function PlanManagement({
               <p className="text-2xl font-bold">
                 {usageCount}
                 <span className="text-base font-normal text-muted-foreground">
-                  /{currentPlanConfig.bookingLimitMonthly === 99999
-                    ? "∞"
-                    : currentPlanConfig.bookingLimitMonthly}{" "}
-                  bookings
+                  /∞ bookings
                 </span>
               </p>
             </div>
-            <Badge
-              variant={
-                usageCount >= currentPlanConfig.bookingLimitMonthly * 0.8
-                  ? "destructive"
-                  : usageCount >= currentPlanConfig.bookingLimitMonthly * 0.5
-                    ? "secondary"
-                    : "default"
-              }
-            >
-              {Math.round((usageCount / currentPlanConfig.bookingLimitMonthly) * 100)}%
-            </Badge>
+            <Badge variant="default">Unlimited</Badge>
           </div>
 
           {subscription && (
@@ -125,15 +157,24 @@ export function PlanManagement({
               &middot; Status: {subscription.status}
             </div>
           )}
+
+          {currentPlan === "trial" && !subscription && (
+            <p className="text-sm text-amber-600">
+              Your 14-day free trial is active. No limits during trial.
+            </p>
+          )}
         </CardContent>
       </Card>
 
       {/* Plan cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         {planIds.map((planId) => {
           const plan = PLANS[planId];
           const isCurrent = planId === currentPlan;
-          const isDowngrade = planIds.indexOf(planId) < planIds.indexOf(currentPlan as PlanId);
+
+          // Override monthly price with admin-configured value
+          const displayPriceCents =
+            planId === "monthly" ? monthlyPriceCents : plan.priceMonthlyCents;
 
           return (
             <Card
@@ -141,18 +182,27 @@ export function PlanManagement({
               className={`relative flex flex-col ${
                 isCurrent
                   ? "border-primary ring-1 ring-primary"
-                  : selectedPlan === planId
-                    ? "border-primary/50"
-                    : ""
+                  : ""
               }`}
             >
               <CardHeader>
                 <CardTitle className="text-lg">{plan.name}</CardTitle>
                 <CardDescription>{plan.description}</CardDescription>
                 <p className="mt-2 text-3xl font-bold">
-                  ₱{(plan.priceMonthlyCents / 100).toLocaleString("en-PH")}
-                  <span className="text-base font-normal text-muted-foreground">/mo</span>
+                  {displayPriceCents === 0 ? (
+                    "Free"
+                  ) : (
+                    <>
+                      ₱{(displayPriceCents / 100).toLocaleString("en-PH")}
+                      <span className="text-base font-normal text-muted-foreground">/mo</span>
+                    </>
+                  )}
                 </p>
+                {plan.trialDays && (
+                  <p className="text-xs text-muted-foreground">
+                    {plan.trialDays}-day trial, unlimited everything
+                  </p>
+                )}
               </CardHeader>
               <CardContent className="flex flex-1 flex-col space-y-4">
                 <ul className="space-y-2 text-sm">
@@ -166,24 +216,24 @@ export function PlanManagement({
 
                 {isCurrent ? (
                   <Button disabled className="mt-auto w-full">
-                    Current plan
+                    {planId === "trial" ? "Current trial" : "Current plan"}
                   </Button>
                 ) : isOwner ? (
                   <Button
-                    variant={isDowngrade ? "outline" : "default"}
+                    variant={planId === "trial" ? "outline" : "default"}
                     className="mt-auto w-full"
                     disabled={loading}
                     onClick={() => handleUpgrade(planId)}
                   >
                     {loading
                       ? "Updating..."
-                      : isDowngrade
-                        ? "Downgrade"
-                        : "Upgrade"}
+                      : planId === "monthly"
+                        ? "Subscribe now"
+                        : "Switch to trial"}
                   </Button>
                 ) : (
                   <p className="mt-auto text-center text-xs text-muted-foreground">
-                    Contact an owner to upgrade
+                    Contact an owner to change plan
                   </p>
                 )}
               </CardContent>

@@ -1,15 +1,16 @@
 /**
  * SKED pricing plan definitions.
  *
- * These limits are enforced server-side (Supabase RPC) and
- * reflected in the UI for transparency.
+ * Plans: Trial (14-day free trial) → Monthly (₱1,299/mo, all features).
+ * The monthly price can be overridden via the admin panel (app_config table).
  *
  * When changing limits here, also update the database constraints
  * in:
  *   supabase/migrations/00010_create_plans_and_subscriptions.sql
+ *   supabase/migrations/00036_create_app_config.sql
  */
 
-export type PlanId = "free" | "starter" | "pro";
+export type PlanId = "trial" | "monthly";
 
 export interface Plan {
   id: PlanId;
@@ -19,43 +20,33 @@ export interface Plan {
   highlights: string[];
   bookingLimitMonthly: number;
   resourceLimit: number;
+  /** Duration in days for trial plans */
+  trialDays?: number;
 }
 
+export const DEFAULT_MONTHLY_PRICE_CENTS = 129900; // ₱1,299
+
 export const PLANS: Record<PlanId, Plan> = {
-  free: {
-    id: "free",
-    name: "Free",
+  trial: {
+    id: "trial",
+    name: "Free Trial",
     priceMonthlyCents: 0,
-    description: "Perfect for testing the waters",
+    description: "14-day free trial. No card required.",
     highlights: [
-      "Up to 50 bookings per month",
-      "Up to 5 resources",
-      "Basic public page",
+      "Unlimited bookings during trial",
+      "Unlimited resources",
+      "All features included",
       "Email support",
     ],
-    bookingLimitMonthly: 50,
-    resourceLimit: 5,
+    bookingLimitMonthly: 99999,
+    resourceLimit: 999,
+    trialDays: 14,
   },
-  starter: {
-    id: "starter",
-    name: "Starter",
-    priceMonthlyCents: 99900, // ₱999
-    description: "For growing businesses",
-    highlights: [
-      "Up to 500 bookings per month",
-      "Up to 20 resources",
-      "Custom public page theme",
-      "Deposit & payment collection",
-      "Priority support",
-    ],
-    bookingLimitMonthly: 500,
-    resourceLimit: 20,
-  },
-  pro: {
-    id: "pro",
-    name: "Pro",
-    priceMonthlyCents: 299900, // ₱2,999
-    description: "For high-volume operations",
+  monthly: {
+    id: "monthly",
+    name: "Monthly",
+    priceMonthlyCents: DEFAULT_MONTHLY_PRICE_CENTS, // ₱1,299 — overridable via admin
+    description: "Full access for your business",
     highlights: [
       "Unlimited bookings",
       "Unlimited resources",
@@ -63,6 +54,7 @@ export const PLANS: Record<PlanId, Plan> = {
       "Team accounts",
       "Advanced analytics",
       "API access",
+      "Priority support",
     ],
     bookingLimitMonthly: 99999,
     resourceLimit: 999,
@@ -71,8 +63,8 @@ export const PLANS: Record<PlanId, Plan> = {
 
 /**
  * Returns the plan configuration for a given plan id.
- * Defaults to "free" if the plan is unknown.
+ * Defaults to "trial" if the plan is unknown.
  */
 export function getPlan(planId: string): Plan {
-  return PLANS[planId as PlanId] ?? PLANS.free;
+  return PLANS[planId as PlanId] ?? PLANS.trial;
 }

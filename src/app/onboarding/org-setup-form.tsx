@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { slugify } from "@/lib/utils";
 import { useAnalytics } from "@/lib/analytics";
 
-export function OrgSetupForm({ userId }: { userId: string }) {
+export function OrgSetupForm({ userId, termMonths }: { userId: string; termMonths?: number | null }) {
   const [orgName, setOrgName] = useState("");
   const [slug, setSlug] = useState("");
   const [locationName, setLocationName] = useState("");
@@ -56,8 +56,24 @@ export function OrgSetupForm({ userId }: { userId: string }) {
         analytics.trackPagePublished(slug, data.org_id);
       }
 
-      router.push("/dashboard");
-      router.refresh();
+      if (termMonths && [1, 12, 24, 36].includes(termMonths)) {
+        const checkout = await fetch("/api/platform-subscriptions/checkout", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": crypto.randomUUID(),
+          },
+          body: JSON.stringify({ termMonths }),
+        });
+        const checkoutData = await checkout.json();
+        if (!checkout.ok || !checkoutData.checkoutUrl) {
+          throw new Error(checkoutData.error || "Your organization was created, but checkout could not be started.");
+        }
+        window.location.href = checkoutData.checkoutUrl;
+      } else {
+        router.push("/dashboard");
+        router.refresh();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

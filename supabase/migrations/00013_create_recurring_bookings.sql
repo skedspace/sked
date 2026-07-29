@@ -8,9 +8,6 @@
 --   drop table recurring_rules;
 --   alter table bookings drop column recurring_rule_id;
 
-ALTER TABLE bookings
-    ADD COLUMN recurring_rule_id UUID REFERENCES recurring_rules(id) ON DELETE SET NULL;
-
 CREATE TABLE recurring_rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -34,6 +31,9 @@ CREATE TABLE recurring_rules (
         (frequency = 'monthly' AND day_of_month IS NOT NULL)
     )
 );
+
+ALTER TABLE bookings
+    ADD COLUMN recurring_rule_id UUID REFERENCES recurring_rules(id) ON DELETE SET NULL;
 
 CREATE INDEX idx_recurring_rules_org ON recurring_rules(org_id);
 

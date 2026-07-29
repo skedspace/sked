@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { PlanManagement } from "./plan-management";
+import { DEFAULT_MONTHLY_PRICE_CENTS } from "@/lib/plans";
 
 export default async function PlanPage() {
   const supabase = createClient();
@@ -28,6 +29,8 @@ export default async function PlanPage() {
     .from("subscriptions")
     .select("*")
     .eq("org_id", membership.org_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   const { data: usage } = await supabase
@@ -37,13 +40,25 @@ export default async function PlanPage() {
     .eq("month", new Date().toISOString().slice(0, 7) + "-01")
     .maybeSingle();
 
+  // Fetch admin-configured monthly price
+  const { data: priceConfig } = await supabase
+    .from("app_config")
+    .select("value")
+    .eq("key", "monthly_price_cents")
+    .maybeSingle();
+
+  const monthlyPriceCents = priceConfig?.value
+    ? Number(priceConfig.value)
+    : DEFAULT_MONTHLY_PRICE_CENTS;
+
   return (
     <PlanManagement
       orgId={membership.org_id}
       isOwner={membership.role === "owner"}
-      currentPlan={org?.plan ?? "free"}
+      currentPlan={org?.plan ?? "trial"}
       subscription={subscription ?? null}
       usageCount={usage?.bookings_count ?? 0}
+      monthlyPriceCents={monthlyPriceCents}
     />
   );
 }

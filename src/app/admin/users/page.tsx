@@ -1,6 +1,26 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { isPlatformRole, ROLE_ACCESS, type PlatformRole } from "@/lib/admin-access";
+import {
+  AdminUserList,
+  type AdminUserListData,
+  type AdminUserRow,
+  type AdminUserRole,
+  type AdminUserStatus,
+} from "./admin-user-list";
+
+export const dynamic = "force-dynamic";
+
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+type AuthUser = {
+  id: string;
+  email?: string;
+  created_at: string;
+  last_sign_in_at?: string | null;
+  banned_until?: string | null;
+  user_metadata?: Record<string, unknown>;
+  app_metadata?: Record<string, unknown>;
+};
 
 type MemberRow = {
   user_id: string;
@@ -9,89 +29,333 @@ type MemberRow = {
   created_at: string;
 };
 
-export default async function AdminUsers() {
+type OrganizationRow = {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  deleted_at: string | null;
+};
+
+type LocationRow = {
+  org_id: string;
+  name: string;
+  address: string | null;
+};
+
+function asDate(value: string | string[] | undefined, fallback: Date) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const date = raw ? new Date(`${raw}T00:00:00`) : fallback;
+  return Number.isNaN(date.getTime()) ? fallback : date;
+}
+
+function startOfDay(value: Date) {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function endOfDay(value: Date) {
+  const date = new Date(value);
+  date.setHours(23, 59, 59, 999);
+  return date;
+}
+
+function dateKey(value: Date) {
+  return [
+    value.getFullYear(),
+    String(value.getMonth() + 1).padStart(2, "0"),
+    String(value.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function text(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function platformRole(user: AuthUser | undefined, member: MemberRow | undefined): AdminUserRole {
+  const saved = text(user?.app_metadata?.platform_role);
+  if (isPlatformRole(saved)) {
+    return saved;
+  }
+  if (member?.role === "owner") return "admin";
+  return "staff";
+}
+
+function accountStatus(user: AuthUser | undefined): AdminUserStatus {
+  if (!user) return "active";
+  if (text(user.app_metadata?.account_status) === "inactive") return "inactive";
+  if (user.banned_until && new Date(user.banned_until) > new Date()) return "inactive";
+  return "active";
+}
+
+function displayName(user: AuthUser | undefined, fallback: string) {
+  const name =
+    text(user?.user_metadata?.full_name) ||
+    text(user?.user_metadata?.name) ||
+    text(user?.user_metadata?.display_name);
+  if (name) return name;
+  const email = user?.email || fallback;
+  return email
+    .split("@")[0]!
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() || ""}${part.slice(1)}`)
+    .join(" ") || "Platform User";
+}
+
+function mockData(from: Date, to: Date): AdminUserListData {
+  const baseline = new Date(Math.min(Date.now(), to.getTime()));
+  const at = (days: number) => {
+    const value = new Date(baseline);
+    value.setDate(value.getDate() - days);
+    return value.toISOString();
+  };
+  const users: AdminUserRow[] = [
+    ["jacob", "Jacob Anderson", "jacob.anderson@email.com", "super_admin", "Ace Pickleball Club", "Makati City, PH", "active", at(0), at(0), 0],
+    ["maria", "Maria Santos", "maria.santos@email.com", "admin", "The Pickle Yard", "Cebu City, PH", "active", at(0), at(0), 1],
+    ["kevin", "Kevin Reyes", "kevin.reyes@email.com", "manager", "Smash Pickleball Center", "Taguig City, PH", "active", at(1), at(0), 2],
+    ["angela", "Angela Lopez", "angela.lopez@email.com", "staff", "CourtSide PH", "Bacolod City, PH", "active", at(1), at(1), 3],
+    ["david", "David Tan", "david.tan@email.com", "manager", "Rally Point Pickleball", "Davao City, PH", "inactive", at(11), at(2), 4],
+    ["nicole", "Nicole Garcia", "nicole.garcia@email.com", "staff", "Pickle Hub", "Quezon City, PH", "active", at(0), at(4), 5],
+    ["joshua", "Joshua Lim", "joshua.lim@email.com", "viewer", "Bay Pickleball Club", "Iloilo City, PH", "active", at(0), at(5), 6],
+    ["sarah", "Sarah Villanueva", "sarah.v@email.com", "staff", "Summit Pickleball", "Baguio City, PH", "inactive", at(7), at(6), 7],
+  ].map((item) => ({
+    id: `mock-${item[0]}`,
+    email: String(item[2]),
+    name: String(item[1]),
+    avatarUrl: null,
+    role: item[3] as AdminUserRole,
+    status: item[6] as AdminUserStatus,
+    orgId: `mock-org-${item[9]}`,
+    orgName: String(item[4]),
+    orgLocation: String(item[5]),
+    orgLogoUrl: null,
+    lastActiveAt: String(item[7]),
+    joinedAt: String(item[8]),
+  }));
+
+  return {
+    range: { from: dateKey(from), to: dateKey(to) },
+    totalAvailable: 1248,
+    metrics: [
+      { key: "total", label: "Total Users", value: 1248, change: 72, tone: "cyan" },
+      { key: "active", label: "Active Users", value: 1086, change: 58, detail: "87.0% of total", tone: "green" },
+      { key: "admins", label: "Admins", value: 86, change: 6, detail: "6.9% of total", tone: "purple" },
+      { key: "managers", label: "Managers", value: 243, change: 11, detail: "19.5% of total", tone: "orange" },
+      { key: "inactive", label: "Inactive Users", value: 162, change: -14, detail: "13.0% of total", tone: "red" },
+    ],
+    users,
+    superAdminUserId: users.find((user) => user.role === "super_admin")?.id ?? null,
+    roleAccess: Object.entries(ROLE_ACCESS).map(([role, value]) => ({
+      role: role as PlatformRole,
+      ...value,
+    })),
+    organizations: users.map((user) => ({
+      id: user.orgId,
+      name: user.orgName,
+      location: user.orgLocation,
+    })),
+    notifications: [
+      { id: "n1", title: "New admin added", detail: "Maria Santos joined The Pickle Yard", at: at(0) },
+      { id: "n2", title: "Super admin active", detail: "Jacob Anderson signed in", at: at(0) },
+      { id: "n3", title: "Inactive user flagged", detail: "David Tan has not signed in recently", at: at(2) },
+      { id: "n4", title: "Viewer access granted", detail: "Joshua Lim can inspect Bay Pickleball Club", at: at(5) },
+      { id: "n5", title: "Staff account inactive", detail: "Sarah Villanueva requires review", at: at(7) },
+      { id: "n6", title: "Manager activity", detail: "Kevin Reyes signed in", at: at(1) },
+    ],
+    demo: true,
+  };
+}
+
+export default async function AdminUsers({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams;
+  const today = endOfDay(new Date());
+  const monthAgo = new Date(today);
+  monthAgo.setDate(monthAgo.getDate() - 30);
+  const rawFrom = startOfDay(asDate(params.from, monthAgo));
+  const rawTo = endOfDay(asDate(params.to, today));
+  const from = rawFrom <= rawTo ? rawFrom : rawTo;
+  const to = rawFrom <= rawTo ? rawTo : rawFrom;
+  const duration = to.getTime() - from.getTime() + 1;
+  const previousTo = new Date(from.getTime() - 1);
+  const previousFrom = new Date(previousTo.getTime() - duration + 1);
+
   const supabase = createAdminClient();
+  const [authUsersResult, membersResult, organizationsResult, locationsResult] =
+    await Promise.all([
+      supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+      supabase
+        .from("org_members")
+        .select("user_id, org_id, role, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5000),
+      supabase
+        .from("organizations")
+        .select("id, name, slug, logo_url, deleted_at")
+        .order("created_at", { ascending: false })
+        .limit(1000),
+      supabase.from("locations").select("org_id, name, address").limit(2000),
+    ]);
 
-  const { data } = await supabase
-    .from("org_members")
-    .select("user_id, org_id, role, created_at")
-    .order("created_at", { ascending: false })
-    .limit(100);
-  const members = (data ?? []) as MemberRow[];
+  const authUsers = (authUsersResult.data?.users ?? []) as AuthUser[];
+  const members = (membersResult.data ?? []) as MemberRow[];
+  const organizations = (organizationsResult.data ?? []) as OrganizationRow[];
+  if (authUsers.length === 0 && members.length === 0) {
+    return <AdminUserList data={mockData(from, to)} />;
+  }
 
-  // Group by user for display
-  const userMap = new Map<string, { roles: string[]; orgs: string[]; created_at: string }>();
-
-  members.forEach((m) => {
-    const existing = userMap.get(m.user_id) ?? {
-      roles: [] as string[],
-      orgs: [] as string[],
-      created_at: m.created_at,
-    };
-    existing.roles.push(m.role);
-    existing.orgs.push(m.org_id.slice(0, 8));
-    existing.created_at = m.created_at;
-    userMap.set(m.user_id, existing);
+  const authUserById = new Map(authUsers.map((user) => [user.id, user]));
+  const orgById = new Map(organizations.map((organization) => [organization.id, organization]));
+  const locationByOrg = new Map<string, LocationRow>();
+  ((locationsResult.data ?? []) as LocationRow[]).forEach((location) => {
+    if (!locationByOrg.has(location.org_id)) locationByOrg.set(location.org_id, location);
   });
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Users</h1>
-        <p className="text-muted-foreground">
-          All platform users and their memberships.
-        </p>
-      </div>
+  const latestMemberByUser = new Map<string, MemberRow>();
+  members.forEach((member) => {
+    if (!latestMemberByUser.has(member.user_id)) latestMemberByUser.set(member.user_id, member);
+  });
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{userMap.size} users</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {userMap.size === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              No users yet.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="pb-2 pr-4 font-medium">User ID</th>
-                    <th className="pb-2 pr-4 font-medium">Roles</th>
-                    <th className="pb-2 pr-4 font-medium">Organizations</th>
-                    <th className="pb-2 font-medium">Joined</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from(userMap.entries()).map(([userId, info]) => (
-                    <tr key={userId} className="border-b last:border-0">
-                      <td className="py-2 pr-4 font-mono text-xs">
-                        {userId.slice(0, 12)}...
-                      </td>
-                      <td className="py-2 pr-4">
-                        <div className="flex gap-1">
-                          {info.roles.map((r) => (
-                            <Badge key={r} variant={r === "owner" ? "default" : "secondary"}>
-                              {r}
-                            </Badge>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="py-2 pr-4 font-mono text-xs text-muted-foreground">
-                        {info.orgs.join(", ")}
-                      </td>
-                      <td className="py-2 text-muted-foreground">
-                        {new Date(info.created_at).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
+  const ids = new Set([...authUsers.map((user) => user.id), ...members.map((member) => member.user_id)]);
+  const rows: AdminUserRow[] = [...ids].map((id) => {
+    const user = authUserById.get(id);
+    const member = latestMemberByUser.get(id);
+    const organization = member ? orgById.get(member.org_id) : undefined;
+    const location = member ? locationByOrg.get(member.org_id) : undefined;
+    const joinedAt = user?.created_at || member?.created_at || new Date().toISOString();
+    return {
+      id,
+      email: user?.email || `${id.slice(0, 8)}@unknown.local`,
+      name: displayName(user, id),
+      avatarUrl: text(user?.user_metadata?.avatar_url) || null,
+      role: platformRole(user, member),
+      status: accountStatus(user),
+      orgId: member?.org_id || "",
+      orgName: organization?.name || "No organization assigned",
+      orgLocation: location?.address || location?.name || "Location not set",
+      orgLogoUrl: organization?.logo_url || null,
+      lastActiveAt: user?.last_sign_in_at || user?.created_at || member?.created_at || null,
+      joinedAt,
+    };
+  });
+  const superAdminIds = rows.filter((row) => row.role === "super_admin").map((row) => row.id);
+
+  const inRange = (value: string | null) => {
+    if (!value) return false;
+    const date = new Date(value);
+    return date >= from && date <= to;
+  };
+  const inPreviousRange = (value: string | null) => {
+    if (!value) return false;
+    const date = new Date(value);
+    return date >= previousFrom && date <= previousTo;
+  };
+  const roleIn = (role: AdminUserRole, keys: AdminUserRole[]) => keys.includes(role);
+  const metric = (
+    key: string,
+    label: string,
+    tone: AdminUserListData["metrics"][number]["tone"],
+    predicate: (row: AdminUserRow) => boolean,
+    detail?: string,
+  ) => {
+    const matching = rows.filter(predicate);
+    const current = matching.filter((row) => inRange(row.joinedAt)).length;
+    const previous = matching.filter((row) => inPreviousRange(row.joinedAt)).length;
+    return { key, label, value: matching.length, change: current - previous, detail, tone };
+  };
+
+  const total = rows.length || 1;
+  const active = rows.filter((row) => row.status === "active").length;
+  const admins = rows.filter((row) => roleIn(row.role, ["super_admin", "admin"])).length;
+  const managers = rows.filter((row) => row.role === "manager").length;
+  const inactive = rows.filter((row) => row.status === "inactive").length;
+
+  const notifications = [
+    ...rows
+      .filter((row) => inRange(row.joinedAt))
+      .slice(0, 3)
+      .map((row) => ({
+        id: `joined-${row.id}`,
+        title: "New user joined",
+        detail: `${row.name} joined ${row.orgName}`,
+        at: row.joinedAt,
+      })),
+    ...rows
+      .filter((row) => row.status === "inactive")
+      .slice(0, 3)
+      .map((row) => ({
+        id: `inactive-${row.id}`,
+        title: "Inactive user needs review",
+        detail: `${row.name} has inactive access`,
+        at: row.lastActiveAt || row.joinedAt,
+      })),
+    ...rows
+      .filter((row) => roleIn(row.role, ["super_admin", "admin"]))
+      .slice(0, 3)
+      .map((row) => ({
+        id: `admin-${row.id}`,
+        title: "Admin access active",
+        detail: `${row.name} can manage ${row.orgName}`,
+        at: row.lastActiveAt || row.joinedAt,
+      })),
+  ]
+    .sort((left, right) => right.at.localeCompare(left.at))
+    .slice(0, 6);
+
+  const data: AdminUserListData = {
+    range: { from: dateKey(from), to: dateKey(to) },
+    totalAvailable: rows.length,
+    metrics: [
+      metric("total", "Total Users", "cyan", () => true),
+      metric(
+        "active",
+        "Active Users",
+        "green",
+        (row) => row.status === "active",
+        `${((active / total) * 100).toFixed(1)}% of total`,
+      ),
+      metric(
+        "admins",
+        "Admins",
+        "purple",
+        (row) => roleIn(row.role, ["super_admin", "admin"]),
+        `${((admins / total) * 100).toFixed(1)}% of total`,
+      ),
+      metric(
+        "managers",
+        "Managers",
+        "orange",
+        (row) => row.role === "manager",
+        `${((managers / total) * 100).toFixed(1)}% of total`,
+      ),
+      metric(
+        "inactive",
+        "Inactive Users",
+        "red",
+        (row) => row.status === "inactive",
+        `${((inactive / total) * 100).toFixed(1)}% of total`,
+      ),
+    ],
+    users: rows.sort((left, right) => right.joinedAt.localeCompare(left.joinedAt)),
+    superAdminUserId: superAdminIds.length === 1 ? superAdminIds[0] ?? null : null,
+    roleAccess: Object.entries(ROLE_ACCESS).map(([role, value]) => ({
+      role: role as PlatformRole,
+      ...value,
+    })),
+    organizations: organizations
+      .filter((organization) => !organization.deleted_at)
+      .map((organization) => {
+        const location = locationByOrg.get(organization.id);
+        return {
+          id: organization.id,
+          name: organization.name,
+          location: location?.address || location?.name || "Location not set",
+        };
+      }),
+    notifications,
+    demo: false,
+  };
+
+  return <AdminUserList data={data} />;
 }

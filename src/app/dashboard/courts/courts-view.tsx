@@ -196,12 +196,12 @@ export function CourtsView({
   const [addedCourts, setAddedCourts] = useState<Court[]>([]);
   const [clientResources, setClientResources] = useState<Court[]>([]);
   const allResources = useMemo(() => {
-    // Prefer client-fetched data (has seeded demo data), fall back to server props
+    // Prefer client-fetched rows so newly added courts appear immediately.
     const base = clientResources.length > 0 ? clientResources : resources;
     return [...base, ...addedCourts];
   }, [resources, clientResources, addedCourts]);
 
-  // On mount, fetch real/seed data from client-side Supabase
+  // On mount, fetch court rows from client-side Supabase.
   useEffect(() => {
     const fetchResources = async () => {
       const { data } = await db

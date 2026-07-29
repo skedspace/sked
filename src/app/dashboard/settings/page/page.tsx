@@ -26,7 +26,7 @@ export default async function PageSettings() {
 
   const { data: org } = await supabase
     .from("organizations")
-    .select("slug, name")
+    .select("slug, name, logo_url")
     .eq("id", membership.org_id)
     .single();
 
@@ -36,6 +36,7 @@ export default async function PageSettings() {
       page={page ?? null}
       slug={org?.slug ?? ""}
       orgName={org?.name ?? ""}
+      orgLogoUrl={org?.logo_url ?? null}
     />
   );
 }

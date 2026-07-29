@@ -194,7 +194,7 @@ export default async function ReportsPage({
       matches={currentMatches as any[]}
       previousMatches={previousMatches as any[]}
       players={players as any[]}
-      generatedBy={session.user.email ?? "Maya Studio"}
+      generatedBy={session.user.email ?? "Current user"}
     />
   );
 }

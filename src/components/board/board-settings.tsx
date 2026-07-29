@@ -24,21 +24,22 @@ import {
 
 interface BoardSettingsProps {
   orgId: string;
+  orgSlug: string;
 }
 
 /* ── Preset card ── */
 
 function PresetCard({
   layout,
-  orgId,
+  orgSlug,
 }: {
   layout: MosaicLayoutDef;
-  orgId: string;
+  orgSlug: string;
 }) {
   const [copied, setCopied] = useState(false);
 
   // Relative at render time — window is not available during SSR
-  const boardPath = `/board/${orgId}/multi/${layout.id}`;
+  const boardPath = `/board/${orgSlug}/multi/${layout.id}`;
 
   const handleCopy = async () => {
     const boardUrl = `${window.location.origin}${boardPath}`;
@@ -122,7 +123,7 @@ function PresetCard({
 
 /* ── Component ── */
 
-export function BoardSettings({ orgId }: BoardSettingsProps) {
+export function BoardSettings({ orgId, orgSlug }: BoardSettingsProps) {
   const layouts = getAllLayouts();
 
   return (
@@ -141,7 +142,7 @@ export function BoardSettings({ orgId }: BoardSettingsProps) {
       {/* Quick links */}
       <div className="grid gap-4 sm:grid-cols-1">
         <a
-          href={`/board/${orgId}`}
+          href={`/board/${orgSlug}`}
           target="_blank"
           className="flex items-center gap-4 rounded-xl border border-black/[0.07] bg-[#f5fadf] p-5 transition-colors hover:bg-[#eff8cf]"
         >
@@ -153,7 +154,7 @@ export function BoardSettings({ orgId }: BoardSettingsProps) {
               Main Board View
             </span>
             <span className="mt-0.5 block truncate text-xs text-[#5d615b]">
-              /board/{orgId}
+              /board/{orgSlug}
             </span>
           </div>
           <ArrowUpRight className="h-4 w-4 shrink-0 text-[#65ad00]" />
@@ -185,7 +186,7 @@ export function BoardSettings({ orgId }: BoardSettingsProps) {
             <PresetCard
               key={layout.id}
               layout={layout}
-              orgId={orgId}
+              orgSlug={orgSlug}
             />
           ))}
         </div>
@@ -241,7 +242,6 @@ function SponsorManager() {
   const [input, setInput] = useState("");
   const [type, setType] = useState<"text" | "logo">("text");
   const [url, setUrl] = useState("");
-  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     try {

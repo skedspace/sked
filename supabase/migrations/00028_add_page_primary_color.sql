@@ -10,6 +10,8 @@ ALTER TABLE pages
   ADD COLUMN IF NOT EXISTS primary_color TEXT;
 
 -- 2. Update the get_public_page RPC to include primary_color
+DROP FUNCTION IF EXISTS get_public_page(TEXT);
+
 CREATE OR REPLACE FUNCTION get_public_page(page_slug TEXT)
 RETURNS TABLE (
     org_id UUID,

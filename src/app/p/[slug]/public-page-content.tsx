@@ -31,6 +31,18 @@ type Slot = {
   resource_name: string;
 };
 
+type PaymentMethod = {
+  id: string;
+  name: string;
+  type: string;
+  account_name?: string;
+  account_number?: string;
+  instructions?: string;
+  qr_image_url?: string;
+  status?: string;
+  is_default?: boolean;
+};
+
 function getDevSlots(date: string, durationMin: number): Slot[] {
   const starts = ["09:00", "10:30", "13:00", "14:30", "16:00", "18:00"];
   return starts.map((time, index) => {
@@ -76,6 +88,7 @@ export function PublicPageContent({
   primaryColor = "#b9f34b",
   inkColor = "#071420",
   mutedColor = "#53606b",
+  paymentMethods = [],
 }: {
   slug: string;
   orgId: string;
@@ -92,6 +105,8 @@ export function PublicPageContent({
     customerHelper?: string;
     paymentTitle?: string;
     paymentHelper?: string;
+    policyTitle?: string;
+    policyHelper?: string;
     confirmationTitle?: string;
     confirmationHelper?: string;
   };
@@ -99,6 +114,7 @@ export function PublicPageContent({
   primaryColor?: string;
   inkColor?: string;
   mutedColor?: string;
+  paymentMethods?: PaymentMethod[];
 }) {
   const analytics = useAnalytics();
   const displayServices = useMemo(
@@ -166,6 +182,7 @@ export function PublicPageContent({
   const currentService = displayServices.find(
     (s) => s.id === selectedService,
   );
+  const activePaymentMethods = paymentMethods.filter((method) => method.status !== "disabled");
   const isDark = tone === "dark";
   const selectedTimeValue = selectedTime || slots[0]?.start_time || "";
   const visibleSlots = selectedTimeValue
@@ -317,6 +334,20 @@ export function PublicPageContent({
                 <span>Secure booking. Instant confirmation.</span>
               </div>
             )}
+            {(bookingCopy?.policyTitle || bookingCopy?.policyHelper) && (
+              <div className="mt-4 rounded-xl border border-[#dfe5e9] bg-[#f7f9f5] p-4">
+                {bookingCopy?.policyTitle && (
+                  <p className="text-xs font-black uppercase tracking-[0.04em] text-[#071420]">
+                    {bookingCopy.policyTitle}
+                  </p>
+                )}
+                {bookingCopy?.policyHelper && (
+                  <p className="mt-2 text-sm font-medium leading-6 text-[#53606b]">
+                    {bookingCopy.policyHelper}
+                  </p>
+                )}
+              </div>
+            )}
           </>
         ) : (
           currentService && (
@@ -333,9 +364,12 @@ export function PublicPageContent({
                 customerHelper: bookingCopy?.customerHelper,
                 paymentTitle: bookingCopy?.paymentTitle,
                 paymentHelper: bookingCopy?.paymentHelper,
+                policyTitle: bookingCopy?.policyTitle,
+                policyHelper: bookingCopy?.policyHelper,
                 confirmationTitle: bookingCopy?.confirmationTitle,
                 confirmationHelper: bookingCopy?.confirmationHelper,
               }}
+              paymentMethods={activePaymentMethods}
             />
           )
         )}
@@ -475,6 +509,20 @@ export function PublicPageContent({
             </div>
           ) : currentService ? (
             <div className="mt-4">
+              {(bookingCopy?.policyTitle || bookingCopy?.policyHelper) && (
+                <div className="mb-4 rounded-xl border border-black/[0.07] bg-white p-3">
+                  {bookingCopy?.policyTitle && (
+                    <p className="text-xs font-black text-[#171a16]">
+                      {bookingCopy.policyTitle}
+                    </p>
+                  )}
+                  {bookingCopy?.policyHelper && (
+                    <p className="mt-1 text-xs font-medium leading-5 text-[#6e716b]">
+                      {bookingCopy.policyHelper}
+                    </p>
+                  )}
+                </div>
+              )}
               <BookingForm
                 orgId={orgId}
                 orgSlug={slug}
@@ -488,9 +536,12 @@ export function PublicPageContent({
                   customerHelper: bookingCopy?.customerHelper,
                   paymentTitle: bookingCopy?.paymentTitle,
                   paymentHelper: bookingCopy?.paymentHelper,
+                  policyTitle: bookingCopy?.policyTitle,
+                  policyHelper: bookingCopy?.policyHelper,
                   confirmationTitle: bookingCopy?.confirmationTitle,
                   confirmationHelper: bookingCopy?.confirmationHelper,
                 }}
+                paymentMethods={activePaymentMethods}
               />
             </div>
           ) : null}
