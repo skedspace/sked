@@ -3,6 +3,8 @@
 --
 -- DOWN: drop table staff_invitations;
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE staff_invitations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
