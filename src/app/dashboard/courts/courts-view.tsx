@@ -201,7 +201,15 @@ export function CourtsView({
   const allResources = useMemo(() => {
     // Prefer client-fetched rows so newly added courts appear immediately.
     const base = clientResources.length > 0 ? clientResources : resources;
-    return [...base, ...addedCourts];
+    // De-duplicate by id: after an insert the optimistic entry in
+    // `addedCourts` and the refreshed server row share the same id, so a plain
+    // concat would render the new court twice.
+    const seen = new Set<string>();
+    return [...base, ...addedCourts].filter((court) => {
+      if (seen.has(court.id)) return false;
+      seen.add(court.id);
+      return true;
+    });
   }, [resources, clientResources, addedCourts]);
 
   // On mount, fetch court rows from client-side Supabase.
