@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import {
   BarChart3,
   CalendarCheck2,
@@ -13,6 +14,7 @@ import {
   CreditCard,
   Grid2X2,
   LayoutDashboard,
+  LogOut,
   Monitor,
   PanelsTopLeft,
   Radio,
@@ -147,6 +149,45 @@ export function DashboardSidebar({
     setExpanded((prev) => ({ ...prev, [label]: !prev[label] }));
   }
 
+  // ── Account menu (logout / settings) ──
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointerDown(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await createClient().auth.signOut();
+    } catch {
+      // Navigate to /login regardless — a failed call still means the user
+      // wants out, and the login page re-checks the session server-side.
+    }
+    // Full navigation so the server re-renders without the cleared session
+    // cookie instead of serving the dashboard from the client router cache.
+    window.location.assign("/login");
+  }
+
+  const menuItemClass =
+    "flex w-full items-center gap-3 px-3.5 py-2.5 text-sm font-semibold text-[#565b54] transition-colors hover:bg-black/[0.04] hover:text-[#151713] focus-visible:bg-black/[0.04] focus-visible:outline-none";
+
   function renderItems(items: NavItem[]) {
     return items.map((item) => {
       const Icon = item.icon;
@@ -217,24 +258,71 @@ export function DashboardSidebar({
         })}
       </nav>
 
-      <button
-        type="button"
-        className="mt-5 flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl border border-[#dfeabf] bg-[#f5fadf] p-2.5 text-left transition-colors hover:bg-[#eff8cf] focus-visible:ring-2 focus-visible:ring-[#65ad00] focus-visible:outline-none sm:justify-start"
-        aria-label={`Open ${orgName || "organization"} account menu`}
-      >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#171a16] text-[11px] font-black text-white">
-          {accountInitials}
-        </span>
-        <span className="hidden min-w-0 flex-1 sm:block">
-          <span className="block truncate text-xs font-black text-[#171a16]">
-            {orgName || "Organization"}
+      <div ref={menuRef} className="relative mt-5">
+        {menuOpen ? (
+          <div
+            role="menu"
+            aria-label="Account menu"
+            className="absolute bottom-full left-0 z-20 mb-2 w-full min-w-[210px] overflow-hidden rounded-2xl border border-black/[0.08] bg-white py-1.5 shadow-[0_18px_50px_rgba(12,16,10,0.16)]"
+          >
+            <Link
+              role="menuitem"
+              href="/dashboard/settings"
+              onClick={() => setMenuOpen(false)}
+              className={menuItemClass}
+            >
+              <Settings className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+              Account Settings
+            </Link>
+            <Link
+              role="menuitem"
+              href="/dashboard/settings/page"
+              onClick={() => setMenuOpen(false)}
+              className={menuItemClass}
+            >
+              <PanelsTopLeft className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+              Public Page
+            </Link>
+            <div className="my-1 h-px bg-black/[0.06]" />
+            <button
+              role="menuitem"
+              type="button"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm font-semibold text-[#b3261e] transition-colors hover:bg-[#fbeae9] focus-visible:bg-[#fbeae9] focus-visible:outline-none disabled:opacity-60"
+            >
+              <LogOut className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />
+              {signingOut ? "Signing out…" : "Sign out"}
+            </button>
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => setMenuOpen((open) => !open)}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          className="flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl border border-[#dfeabf] bg-[#f5fadf] p-2.5 text-left transition-colors hover:bg-[#eff8cf] focus-visible:ring-2 focus-visible:ring-[#65ad00] focus-visible:outline-none sm:justify-start"
+          aria-label={`Open ${orgName || "organization"} account menu`}
+        >
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#171a16] text-[11px] font-black text-white">
+            {accountInitials}
           </span>
-          <span className="text-muted-foreground mt-0.5 block text-[10px]">
-            {isOwner ? "Owner" : "Staff"}
+          <span className="hidden min-w-0 flex-1 sm:block">
+            <span className="block truncate text-xs font-black text-[#171a16]">
+              {orgName || "Organization"}
+            </span>
+            <span className="text-muted-foreground mt-0.5 block text-[10px]">
+              {isOwner ? "Owner" : "Staff"}
+            </span>
           </span>
-        </span>
-        <ChevronDown className="text-muted-foreground hidden h-4 w-4 sm:block" />
-      </button>
+          <ChevronDown
+            className={`text-muted-foreground hidden h-4 w-4 shrink-0 transition-transform sm:block ${
+              menuOpen ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+      </div>
     </aside>
   );
 }
