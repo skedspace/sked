@@ -6,6 +6,10 @@ import { PostHogProvider } from "@/components/shared/posthog-provider";
 import { CookieConsent } from "@/components/shared/cookie-consent";
 import { ServiceWorkerRegister } from "@/components/shared/service-worker-register";
 
+// CSP uses a request-specific nonce, so layouts must render per request rather
+// than being served from an ISR snapshot with scripts carrying an old nonce.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: {
     template: "%s | SKED",
