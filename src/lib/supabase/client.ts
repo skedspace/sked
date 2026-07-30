@@ -11,6 +11,10 @@ if (!isDevAuthEnabled()) {
 // ── Module-level mock store ──
 // Persists across renders within the same page session.
 const MOCK_ORG_ID = "00000000-0000-0000-0000-000000000001";
+const MOCK_USER = {
+  id: "00000000-0000-0000-0000-000000000001",
+  email: "dev@sked.space",
+};
 
 const store = new Map<string, Record<string, unknown>[]>();
 
@@ -174,7 +178,24 @@ function createMockClient() {
   return {
     auth: {
       getSession: async () => ({
-        data: { session: { user: { id: "00000000-0000-0000-0000-000000000001", email: "dev@sked.space" } } },
+        data: { session: { user: MOCK_USER } },
+        error: null,
+      }),
+      getUser: async () => ({ data: { user: MOCK_USER }, error: null }),
+      signOut: async () => ({ error: null }),
+      // Dev mode never reaches a real identity provider; these exist so the
+      // account and admin-signup forms complete instead of throwing.
+      updateUser: async () => ({ data: { user: MOCK_USER }, error: null }),
+      signUp: async () => ({
+        data: { user: MOCK_USER, session: { user: MOCK_USER } },
+        error: null,
+      }),
+      signInWithPassword: async () => ({
+        data: { user: MOCK_USER, session: { user: MOCK_USER } },
+        error: null,
+      }),
+      signInWithOAuth: async () => ({
+        data: { provider: "google", url: null },
         error: null,
       }),
     },

@@ -132,7 +132,7 @@ function createMockClient() {
 
     const tableSeed = tableName ? seedData[tableName] : undefined;
     const seededResult = tableSeed
-      ? { data: tableSeed, error: null }
+      ? { data: tableSeed, error: null, count: tableSeed.length }
       : emptyResult;
     const seededSingleResult = tableSeed
       ? { data: tableSeed[0] ?? null, error: null }
@@ -141,9 +141,7 @@ function createMockClient() {
     return {
       select: () => {
         const c = makeChain(isOrgMembers, tableName);
-        c.single = async () => seededSingleResult;
-        c.limit = async () => seededResult;
-        c.maybeSingle = async () => seededSingleResult;
+        // Filters and modifiers stay chainable, matching PostgREST.
         [
           "eq",
           "neq",
@@ -160,10 +158,19 @@ function createMockClient() {
           "order",
           "limit",
           "range",
-          "maybeSingle",
         ].forEach((m) => {
           c[m] = () => c;
         });
+        // Terminal methods resolve. These are assigned *after* the loop above
+        // so it cannot overwrite them with chainable stubs.
+        c.single = async () => seededSingleResult;
+        c.maybeSingle = async () => seededSingleResult;
+        // A PostgREST builder is awaitable on its own, so `await select().eq()`
+        // has to yield { data, error } rather than the builder itself.
+        c.then = (
+          resolve: (value: typeof seededResult) => unknown,
+          reject?: (reason: unknown) => unknown,
+        ) => Promise.resolve(seededResult).then(resolve, reject);
         return c;
       },
       insert: (value: unknown) => {
@@ -207,6 +214,12 @@ function createMockClient() {
       single: async () => singleResult,
       limit: async () => limitResult,
       maybeSingle: async () => singleResult,
+      // Write chains (`insert`/`update`/`delete`, optionally followed by
+      // filters) are awaited directly for their error, so they must resolve.
+      then: (
+        resolve: (value: typeof emptySingleResult) => unknown,
+        reject?: (reason: unknown) => unknown,
+      ) => Promise.resolve(emptySingleResult).then(resolve, reject),
     };
   }
 
@@ -214,6 +227,17 @@ function createMockClient() {
     auth: {
       getSession: async () => ({
         data: { session: mockSessionData },
+        error: null,
+      }),
+      getUser: async () => ({
+        data: { user: mockSessionData.user },
+        error: null,
+      }),
+      // Dev mode has no real session to tear down — middleware bypasses auth
+      // entirely — so this just lets /auth/signout complete its redirect.
+      signOut: async () => ({ error: null }),
+      exchangeCodeForSession: async () => ({
+        data: { session: mockSessionData, user: mockSessionData.user },
         error: null,
       }),
     },
