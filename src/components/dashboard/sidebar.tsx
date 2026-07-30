@@ -22,6 +22,7 @@ import {
   SlidersHorizontal,
   Star,
   Swords,
+  Tags,
   Trophy,
   UserRound,
   UsersRound,
@@ -76,6 +77,11 @@ export function DashboardSidebar({
         { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays },
         { href: "/dashboard/bookings", label: "Bookings", icon: ClipboardList },
         { href: "/dashboard/courts", label: "Courts", icon: Grid2X2 },
+        {
+          href: "/dashboard/settings/services",
+          label: "Services",
+          icon: Tags,
+        },
       ],
     },
     {

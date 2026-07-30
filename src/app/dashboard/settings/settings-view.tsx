@@ -1610,6 +1610,10 @@ function SettingsAside({
     <aside className="space-y-5">
       <SideCard icon={<Zap />} title="Quick Actions">
         <QuickLink
+          href="/dashboard/settings/services"
+          label="Services & Pricing"
+        />
+        <QuickLink
           href="/dashboard/settings/team"
           label="Manage Users & Roles"
         />

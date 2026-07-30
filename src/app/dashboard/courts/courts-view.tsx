@@ -21,6 +21,7 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
+  Trash2,
   Wrench,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
@@ -226,16 +227,22 @@ export function CourtsView({
   }, [db]);
 
   // Services created inline from the court dialog, merged with server props so
-  // they show up as linkable options immediately.
+  // they show up as linkable options immediately. Deleted ids are hidden until
+  // the server refresh drops them from the props.
   const [addedServices, setAddedServices] = useState<Service[]>([]);
+  const [deletedServiceIds, setDeletedServiceIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const allServices = useMemo(() => {
     const seen = new Set<string>();
     return [...services, ...addedServices].filter((service) => {
-      if (seen.has(service.id)) return false;
+      if (seen.has(service.id) || deletedServiceIds.has(service.id)) {
+        return false;
+      }
       seen.add(service.id);
       return true;
     });
-  }, [services, addedServices]);
+  }, [services, addedServices, deletedServiceIds]);
 
   const [selectedCourtId, setSelectedCourtId] = useState(
     allResources[0]?.id ?? "",
@@ -257,11 +264,64 @@ export function CourtsView({
     duration: "60",
   });
 
+  // Deleting a service from the list (with inline confirmation).
+  const [confirmDeleteServiceId, setConfirmDeleteServiceId] = useState<
+    string | null
+  >(null);
+  const [deletingServiceId, setDeletingServiceId] = useState<string | null>(
+    null,
+  );
+  const [serviceActionError, setServiceActionError] = useState<string | null>(
+    null,
+  );
+
+  async function handleDeleteService(serviceId: string) {
+    setDeletingServiceId(serviceId);
+    setServiceActionError(null);
+    try {
+      const { error } = await db
+        .from("services")
+        .delete()
+        .eq("id", serviceId);
+
+      if (error) {
+        // 23503 = foreign_key_violation: the service still has bookings, which
+        // reference services(id) with no cascade, so it cannot be removed.
+        const isInUse =
+          error.code === "23503" ||
+          /foreign key|violates|referenced/i.test(error.message ?? "");
+        setServiceActionError(
+          isInUse
+            ? "This service has existing bookings, so it can't be deleted."
+            : error.message || "Could not delete the service.",
+        );
+        return;
+      }
+
+      setDeletedServiceIds((prev) => new Set(prev).add(serviceId));
+      setAddedServices((prev) => prev.filter((s) => s.id !== serviceId));
+      setFormState((state) => ({
+        ...state,
+        serviceIds: state.serviceIds.filter((id) => id !== serviceId),
+      }));
+      setConfirmDeleteServiceId(null);
+      router.refresh();
+    } catch (err) {
+      setServiceActionError(
+        err instanceof Error ? err.message : "Could not delete the service.",
+      );
+    } finally {
+      setDeletingServiceId(null);
+    }
+  }
+
   function resetNewService() {
     setShowNewService(false);
     setAddingService(false);
     setNewServiceError(null);
     setNewService({ name: "", price: "", duration: "60" });
+    setConfirmDeleteServiceId(null);
+    setServiceActionError(null);
   }
 
   async function handleAddService() {
@@ -1076,46 +1136,112 @@ export function CourtsView({
                 </p>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {allServices.map((service) => (
-                    <label
-                      key={service.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-black/10 p-3 text-sm"
-                    >
-                      <span>
-                        <span className="block font-bold">{service.name}</span>
-                        <span className="text-xs text-[#6b7068]">
-                          {formatCurrency(service.price_cents)} ·{" "}
-                          {service.duration_min} min
-                          {service.duration_min > 0 && (
-                            <>
-                              {" "}
-                              ·{" "}
-                              {formatCurrency(
-                                (service.price_cents / service.duration_min) *
-                                  60,
-                              )}
-                              /hr
-                            </>
-                          )}
-                        </span>
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={formState.serviceIds.includes(service.id)}
-                        onChange={(event) =>
-                          setFormState((state) => ({
-                            ...state,
-                            serviceIds: event.target.checked
-                              ? [...state.serviceIds, service.id]
-                              : state.serviceIds.filter(
-                                  (id) => id !== service.id,
-                                ),
-                          }))
-                        }
-                      />
-                    </label>
-                  ))}
+                  {allServices.map((service) => {
+                    const confirming = confirmDeleteServiceId === service.id;
+                    return (
+                      <div
+                        key={service.id}
+                        className="flex items-center justify-between gap-2 rounded-xl border border-black/10 p-3 text-sm"
+                      >
+                        {confirming ? (
+                          <>
+                            <span className="min-w-0 text-xs text-[#6b7068]">
+                              Delete{" "}
+                              <span className="font-bold text-[#171a16]">
+                                {service.name}
+                              </span>
+                              ?
+                            </span>
+                            <span className="flex shrink-0 items-center gap-1.5">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setConfirmDeleteServiceId(null);
+                                  setServiceActionError(null);
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="bg-red-600 text-white hover:bg-red-700"
+                                disabled={deletingServiceId === service.id}
+                                onClick={() => handleDeleteService(service.id)}
+                              >
+                                {deletingServiceId === service.id
+                                  ? "Deleting…"
+                                  : "Delete"}
+                              </Button>
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+                              <input
+                                type="checkbox"
+                                className="shrink-0"
+                                checked={formState.serviceIds.includes(
+                                  service.id,
+                                )}
+                                onChange={(event) =>
+                                  setFormState((state) => ({
+                                    ...state,
+                                    serviceIds: event.target.checked
+                                      ? [...state.serviceIds, service.id]
+                                      : state.serviceIds.filter(
+                                          (id) => id !== service.id,
+                                        ),
+                                  }))
+                                }
+                              />
+                              <span className="min-w-0">
+                                <span className="block truncate font-bold">
+                                  {service.name}
+                                </span>
+                                <span className="text-xs text-[#6b7068]">
+                                  {formatCurrency(service.price_cents)} ·{" "}
+                                  {service.duration_min} min
+                                  {service.duration_min > 0 && (
+                                    <>
+                                      {" "}
+                                      ·{" "}
+                                      {formatCurrency(
+                                        (service.price_cents /
+                                          service.duration_min) *
+                                          60,
+                                      )}
+                                      /hr
+                                    </>
+                                  )}
+                                </span>
+                              </span>
+                            </label>
+                            <button
+                              type="button"
+                              aria-label={`Delete ${service.name}`}
+                              onClick={() => {
+                                setConfirmDeleteServiceId(service.id);
+                                setServiceActionError(null);
+                              }}
+                              className="shrink-0 rounded-lg p-1.5 text-[#9ba097] transition-colors hover:bg-red-50 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+              )}
+
+              {serviceActionError && (
+                <p className="text-xs font-medium text-red-600">
+                  {serviceActionError}
+                </p>
               )}
 
               {/* Inline quick-add */}
