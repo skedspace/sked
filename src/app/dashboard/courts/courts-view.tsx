@@ -225,6 +225,18 @@ export function CourtsView({
     fetchResources();
   }, [db]);
 
+  // Services created inline from the court dialog, merged with server props so
+  // they show up as linkable options immediately.
+  const [addedServices, setAddedServices] = useState<Service[]>([]);
+  const allServices = useMemo(() => {
+    const seen = new Set<string>();
+    return [...services, ...addedServices].filter((service) => {
+      if (seen.has(service.id)) return false;
+      seen.add(service.id);
+      return true;
+    });
+  }, [services, addedServices]);
+
   const [selectedCourtId, setSelectedCourtId] = useState(
     allResources[0]?.id ?? "",
   );
@@ -234,6 +246,75 @@ export function CourtsView({
   const [formState, setFormState] = useState<CourtFormState>(() =>
     initialForm(null, locations, serviceLinks),
   );
+
+  // Inline "new service" quick-add within the court dialog.
+  const [showNewService, setShowNewService] = useState(false);
+  const [addingService, setAddingService] = useState(false);
+  const [newServiceError, setNewServiceError] = useState<string | null>(null);
+  const [newService, setNewService] = useState({
+    name: "",
+    price: "",
+    duration: "60",
+  });
+
+  function resetNewService() {
+    setShowNewService(false);
+    setAddingService(false);
+    setNewServiceError(null);
+    setNewService({ name: "", price: "", duration: "60" });
+  }
+
+  async function handleAddService() {
+    const name = newService.name.trim();
+    if (!name) {
+      setNewServiceError("Give the service a name.");
+      return;
+    }
+    const durationMin = Math.max(
+      1,
+      Number.parseInt(newService.duration, 10) || 60,
+    );
+    const priceCents = Math.max(
+      0,
+      Math.round((Number.parseFloat(newService.price) || 0) * 100),
+    );
+
+    setAddingService(true);
+    setNewServiceError(null);
+    try {
+      const { data, error } = await db
+        .from("services")
+        .insert({
+          org_id: orgId,
+          name,
+          duration_min: durationMin,
+          price_cents: priceCents,
+        })
+        .select("id, name, duration_min, price_cents, is_active")
+        .single();
+
+      if (error || !data) {
+        setNewServiceError(error?.message ?? "Could not create the service.");
+        return;
+      }
+
+      const created = data as Service;
+      setAddedServices((prev) => [...prev, created]);
+      // Auto-link the new service to the court being created/edited.
+      setFormState((state) => ({
+        ...state,
+        serviceIds: [...state.serviceIds, created.id],
+      }));
+      setNewService({ name: "", price: "", duration: "60" });
+      setShowNewService(false);
+    } catch (err) {
+      setNewServiceError(
+        err instanceof Error ? err.message : "Could not create the service.",
+      );
+    } finally {
+      setAddingService(false);
+    }
+  }
 
   const selected =
     allResources.find((court) => court.id === selectedCourtId) ??
@@ -275,7 +356,7 @@ export function CourtsView({
       const linkedServices = serviceLinks
         .filter((link) => link.resource_id === court.id)
         .map((link) =>
-          services.find((service) => service.id === link.service_id),
+          allServices.find((service) => service.id === link.service_id),
         )
         .filter((service): service is Service => Boolean(service));
       const hourlyPrices = linkedServices
@@ -289,7 +370,7 @@ export function CourtsView({
 
       return { court, utilization, priceCents, linkedServices };
     });
-  }, [allResources, services, serviceLinks, operatingHours, weekBookings]);
+  }, [allResources, allServices, serviceLinks, operatingHours, weekBookings]);
 
   const filteredMetrics = courtMetrics.filter(({ court }) => {
     const haystack =
@@ -355,12 +436,14 @@ export function CourtsView({
   function openAddDialog() {
     setFormState(initialForm(null, locations, serviceLinks));
     setFormError(null);
+    resetNewService();
     setFormOpen(true);
   }
 
   function openEditDialog(court: Court) {
     setFormState(initialForm(court, locations, serviceLinks));
     setFormError(null);
+    resetNewService();
     setFormOpen(true);
   }
 
@@ -986,9 +1069,14 @@ export function CourtsView({
             {/* ── Services ── */}
             <div className="space-y-3 sm:col-span-2">
               <Label>Bookable services</Label>
-              {services.length === 0 ? null : (
+              {allServices.length === 0 ? (
+                <p className="text-xs text-[#6b7068]">
+                  No services yet. Add one below to set the hourly rate for this
+                  court.
+                </p>
+              ) : (
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {services.map((service) => (
+                  {allServices.map((service) => (
                     <label
                       key={service.id}
                       className="flex items-center justify-between gap-3 rounded-xl border border-black/10 p-3 text-sm"
@@ -998,6 +1086,17 @@ export function CourtsView({
                         <span className="text-xs text-[#6b7068]">
                           {formatCurrency(service.price_cents)} ·{" "}
                           {service.duration_min} min
+                          {service.duration_min > 0 && (
+                            <>
+                              {" "}
+                              ·{" "}
+                              {formatCurrency(
+                                (service.price_cents / service.duration_min) *
+                                  60,
+                              )}
+                              /hr
+                            </>
+                          )}
                         </span>
                       </span>
                       <input
@@ -1018,6 +1117,126 @@ export function CourtsView({
                   ))}
                 </div>
               )}
+
+              {/* Inline quick-add */}
+              {showNewService ? (
+                <div className="space-y-3 rounded-xl border border-black/10 bg-[#fbfaf7] p-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label htmlFor="new-svc-name" className="text-xs">
+                        Service name
+                      </Label>
+                      <Input
+                        id="new-svc-name"
+                        value={newService.name}
+                        placeholder="Court Rental (1 hr)"
+                        onChange={(e) =>
+                          setNewService((s) => ({ ...s, name: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddService();
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="new-svc-price" className="text-xs">
+                        Price (₱)
+                      </Label>
+                      <Input
+                        id="new-svc-price"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={newService.price}
+                        placeholder="350"
+                        onChange={(e) =>
+                          setNewService((s) => ({ ...s, price: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddService();
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="new-svc-duration" className="text-xs">
+                        Duration (min)
+                      </Label>
+                      <Input
+                        id="new-svc-duration"
+                        type="number"
+                        min={1}
+                        step={15}
+                        value={newService.duration}
+                        onChange={(e) =>
+                          setNewService((s) => ({
+                            ...s,
+                            duration: e.target.value,
+                          }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddService();
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {(() => {
+                    const price = Number.parseFloat(newService.price) || 0;
+                    const duration =
+                      Number.parseInt(newService.duration, 10) || 0;
+                    return duration > 0 && price > 0 ? (
+                      <p className="text-xs text-[#6b7068]">
+                        ≈ {formatCurrency((price * 100) / duration * 60)}/hr
+                      </p>
+                    ) : null;
+                  })()}
+                  {newServiceError && (
+                    <p className="text-xs font-medium text-red-600">
+                      {newServiceError}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleAddService}
+                      disabled={addingService}
+                    >
+                      {addingService ? "Adding…" : "Add service"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={resetNewService}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowNewService(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                  New service
+                </Button>
+              )}
+              <p className="text-[11px] text-[#8c9185]">
+                Buffers, deposits and other options can be set in Settings →
+                Services.
+              </p>
             </div>
 
             {formError && (
