@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createMiddlewareClient } from "@/lib/supabase/middleware";
 import { isDevAuthEnabled } from "@/lib/dev-auth";
 
@@ -9,7 +9,9 @@ export async function middleware(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID());
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
-  request.headers.set("x-nonce", nonce);
+  const middlewareRequest = new NextRequest(request, {
+    headers: requestHeaders,
+  });
   const securityHeaders = {
     "Content-Security-Policy": [
       "default-src 'self'",
@@ -47,7 +49,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Check session for protected routes
-  const { supabase, getResponse } = createMiddlewareClient(request);
+  const { supabase, getResponse } = createMiddlewareClient(middlewareRequest);
   const {
     data: { user },
   } = await supabase.auth.getUser();
