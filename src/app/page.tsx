@@ -20,7 +20,7 @@ import type { Plan, PlanId } from "@/lib/plans";
 import { readPlatformPricingConfig } from "@/lib/pricing-config";
 import { AnnualSavingsModal } from "@/app/pricing/annual-savings-modal";
 import { TestimonialsColumn } from "@/components/ui/testimonials-columns-1";
-import { BookingRally } from "@/components/marketing/booking-rally";
+import { ScrollReveal } from "@/components/marketing/scroll-reveal";
 
 export const dynamic = "force-dynamic";
 
@@ -509,23 +509,23 @@ function MarketingHero() {
         </div>
       </nav>
 
-      <div className="mx-auto grid max-w-[1480px] gap-10 px-5 pt-10 pb-36 sm:px-10 lg:grid-cols-[minmax(0,0.98fr)_minmax(520px,1.02fr)] lg:px-16 lg:pt-14 lg:pb-44">
-        <div className="max-w-2xl">
-          <p className="mb-8 inline-flex items-center gap-3 rounded-full border border-[#b9f34b] px-4 py-2 text-xs font-black tracking-[0.16em] text-white uppercase">
+      <div className="mx-auto max-w-[1480px] px-5 pt-10 pb-36 sm:px-10 lg:px-16 lg:pt-14 lg:pb-44">
+        <div className="max-w-3xl">
+          <p className="hero-enter hero-enter-1 mb-8 inline-flex items-center gap-3 rounded-full border border-[#b9f34b] px-4 py-2 text-xs font-black tracking-[0.16em] text-white uppercase">
             <span className="h-2 w-2 rounded-full bg-[#b9f34b]" />
             All-in-one pickleball booking platform
           </p>
-          <h1 className="text-[clamp(3.6rem,7.2vw,6.9rem)] leading-[0.92] font-black tracking-[-0.055em] text-white">
+          <h1 className="hero-enter hero-enter-2 text-[clamp(3.6rem,7.2vw,6.9rem)] leading-[0.92] font-black tracking-[-0.055em] text-white">
             Smarter
             <span className="block text-[#b9f34b]">pickleball</span>
             scheduling
           </h1>
 
-          <p className="mt-7 max-w-xl text-lg leading-8 text-white/78 sm:text-xl">
+          <p className="hero-enter hero-enter-3 mt-7 max-w-xl text-lg leading-8 text-white/78 sm:text-xl">
             SKED helps facilities, clubs, and players manage courts, bookings,
             payments, and communities in one smart platform.
           </p>
-          <div className="mt-9 flex flex-col gap-4 sm:flex-row">
+          <div className="hero-enter hero-enter-4 mt-9 flex flex-col gap-4 sm:flex-row">
             <Link
               href="/signup"
               className="inline-flex h-14 items-center justify-center gap-3 rounded-full bg-[#b9f34b] px-8 text-base font-black text-[#071004] transition hover:-translate-y-0.5 hover:bg-[#c8ff62]"
@@ -540,7 +540,7 @@ function MarketingHero() {
               Book a demo
             </a>
           </div>
-          <div className="mt-8 grid gap-4 text-sm font-medium text-white/82 sm:grid-cols-3">
+          <div className="hero-enter hero-enter-5 mt-8 grid gap-4 text-sm font-medium text-white/82 sm:grid-cols-3">
             {[
               "No credit card",
               "Setup in under 2 minutes",
@@ -556,7 +556,6 @@ function MarketingHero() {
           </div>
         </div>
 
-        <BookingRally />
       </div>
 
       <div className="trusted-marquee border-t border-white/10 bg-black/32 py-6 backdrop-blur-md lg:absolute lg:inset-x-0 lg:bottom-0">
@@ -710,7 +709,7 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section id="features" className="scroll-mt-24">
+        <ScrollReveal id="features" className="scroll-mt-24">
           <div className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
             <div className="mb-3 flex items-center gap-2 text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase">
               <WandSparkles className="h-4 w-4" />
@@ -761,9 +760,9 @@ export default async function HomePage() {
               </div>
             </div>
           </div>
-        </section>
+        </ScrollReveal>
 
-        <section id="how-it-works" className="scroll-mt-20 bg-[#e9e8df]">
+        <ScrollReveal id="how-it-works" className="scroll-mt-20 bg-[#e9e8df]" delay={0.06}>
           <div className="mx-auto grid w-full max-w-7xl gap-14 px-5 py-24 sm:px-8 sm:py-32 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24">
             <div className="lg:sticky lg:top-28 lg:self-start">
               <p className="mb-4 flex items-center gap-2 text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase">
@@ -815,10 +814,10 @@ export default async function HomePage() {
               </ol>
             </div>
           </div>
-        </section>
+        </ScrollReveal>
 
         {/* ── Testimonials ── */}
-        <section className="relative overflow-hidden bg-white">
+        <ScrollReveal className="relative overflow-hidden bg-white" delay={0.08}>
           <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
             <div className="mx-auto flex max-w-[540px] flex-col items-center justify-center">
               <div className="flex justify-center">
@@ -848,10 +847,10 @@ export default async function HomePage() {
               />
             </div>
           </div>
-        </section>
+        </ScrollReveal>
 
         {/* ── FAQ ── */}
-        <section className="bg-[#e9e8df]">
+        <ScrollReveal className="bg-[#e9e8df]" delay={0.12}>
           <div className="reveal-on-scroll mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
             <p className="flex items-center justify-center gap-2 text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase">
               <HelpCircle className="h-4 w-4" />
@@ -918,10 +917,10 @@ export default async function HomePage() {
               ))}
             </div>
           </div>
-        </section>
+        </ScrollReveal>
 
         {/* ── Latest from the blog ── */}
-        <section id="blog" className="scroll-mt-24 bg-white">
+        <ScrollReveal id="blog" className="scroll-mt-24 bg-white" delay={0.08}>
           <div className="reveal-on-scroll mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
             <div className="flex items-end justify-between gap-6">
               <div>
@@ -980,10 +979,10 @@ export default async function HomePage() {
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
-        </section>
+        </ScrollReveal>
 
         {/* Pricing */}
-        <section id="pricing" className="scroll-mt-24 bg-[#e9e8df]">
+        <ScrollReveal id="pricing" className="scroll-mt-24 bg-[#e9e8df]" delay={0.12}>
           <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
             <div className="mx-auto max-w-2xl text-center">
               <p className="mb-4 flex items-center justify-center gap-2 text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase">
@@ -1030,9 +1029,9 @@ export default async function HomePage() {
               />
             )}
           </div>
-        </section>
+        </ScrollReveal>
 
-        <section className="relative isolate overflow-hidden bg-[#050b0f] text-white">
+        <ScrollReveal className="relative isolate overflow-hidden bg-[#050b0f] text-white" delay={0.08}>
           <img
             src="/images/cta3.webp"
             alt=""
@@ -1067,7 +1066,7 @@ export default async function HomePage() {
             </div>
             <div />
           </div>
-        </section>
+        </ScrollReveal>
       </main>
 
       <footer className="bg-[#f7f6ef]">
