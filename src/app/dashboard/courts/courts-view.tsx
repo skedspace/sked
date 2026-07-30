@@ -185,7 +185,9 @@ export function CourtsView({
   operatingHours: OperatingHour[];
 }) {
   const router = useRouter();
-  const supabase = createClient();
+  // Memoized so the client identity is stable across renders and can safely be
+  // listed as an effect dependency.
+  const supabase = useMemo(() => createClient(), []);
   const db = supabase as any;
   const [query, setQuery] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
@@ -212,7 +214,7 @@ export function CourtsView({
       }
     };
     fetchResources();
-  }, []);
+  }, [db]);
 
   const [selectedCourtId, setSelectedCourtId] = useState(
     allResources[0]?.id ?? "",

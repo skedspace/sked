@@ -416,7 +416,7 @@ export function SessionControl({ orgId }: { orgId: string }) {
         groups: [...prev.groups, newGroup],
       };
     });
-  }, []);
+  }, [updateAndPersist]);
 
   // ── Assign group to court ──
 
@@ -494,6 +494,8 @@ export function SessionControl({ orgId }: { orgId: string }) {
   const [teamAScore, setTeamAScore] = useState("");
   const [teamBScore, setTeamBScore] = useState("");
   const [recordingMatch, setRecordingMatch] = useState(false);
+  // ── Swap teams in score dialog ──
+  const [swapTeamsFlag, setSwapTeamsFlag] = useState(false);
 
   const confirmEndGame = useCallback(async () => {
     if (!endGameTarget || !endGameTarget.group) return;
@@ -552,7 +554,7 @@ export function SessionControl({ orgId }: { orgId: string }) {
         returned: [...prev.returned, ...currentCourt.group.players],
       };
     });
-  }, [endGameTarget, teamAScore, teamBScore, orgId, sessionName, updateAndPersist]);
+  }, [endGameTarget, teamAScore, teamBScore, swapTeamsFlag, orgId, sessionName, updateAndPersist]);
 
   const requestEndGame = useCallback((courtId: string) => {
     setState((prev) => {
@@ -564,10 +566,6 @@ export function SessionControl({ orgId }: { orgId: string }) {
       return prev;
     });
   }, []);
-
-  // ── Swap teams in score dialog ──
-
-  const [swapTeamsFlag, setSwapTeamsFlag] = useState(false);
 
   const swapTeams = useCallback(() => {
     setSwapTeamsFlag((prev) => !prev);
