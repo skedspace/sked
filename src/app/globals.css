@@ -601,6 +601,21 @@ html {
   }
 }
 
+.hero-enter {
+  animation: hero-enter 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-enter-1 { animation-delay: 120ms; }
+.hero-enter-2 { animation-delay: 220ms; }
+.hero-enter-3 { animation-delay: 360ms; }
+.hero-enter-4 { animation-delay: 480ms; }
+.hero-enter-5 { animation-delay: 620ms; }
+
+@keyframes hero-enter {
+  from { opacity: 0; transform: translateY(22px); filter: blur(8px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
 @keyframes accordion-down {
   from {
     height: 0;
@@ -706,6 +721,7 @@ html {
   .orbit-badge,
   .status-pulse::after,
   .reveal-on-scroll,
+  .hero-enter,
   .testimonials-column-scroll {
     animation: none;
   }
