@@ -92,55 +92,55 @@ const steps = [
 const testimonialsData = [
   {
     text: "SKED cut our no-show rate from 22% to under 3%. Automated reminders and easy rescheduling keep our prime-time courts full.",
-    image: "https://randomuser.me/api/portraits/women/1.jpg",
+    image: "/images/testimonials/maya-reyes.webp",
     name: "Maya Reyes",
     role: "Riverside Pickleball Club",
   },
   {
     text: "I was spending hours on the phone assigning courts. Now players book themselves, and our front desk can focus on the club.",
-    image: "https://randomuser.me/api/portraits/men/2.jpg",
+    image: "/images/testimonials/james-tan.webp",
     name: "James Tan",
     role: "JT Court House",
   },
   {
     text: "The public page looks like a real website. Our members love seeing court availability and booking without creating an account.",
-    image: "https://randomuser.me/api/portraits/women/3.jpg",
+    image: "/images/testimonials/sofia-lim.webp",
     name: "Sofia Lim",
     role: "Bloom Pickleball",
   },
   {
     text: "Setting up SKED took less than 10 minutes. The customization options match our club brand, and players love the smooth booking flow.",
-    image: "https://randomuser.me/api/portraits/men/4.jpg",
+    image: "/images/testimonials/carlos-mendez.webp",
     name: "Carlos Mendez",
     role: "Luna Paddle Club",
   },
   {
     text: "Our indoor courts run entirely on SKED now. Open play, private lessons, waitlists--it handles everything beautifully.",
-    image: "https://randomuser.me/api/portraits/women/5.jpg",
+    image: "/images/testimonials/priya-sharma.webp",
     name: "Priya Sharma",
     role: "Sage Pickleball Center",
   },
   {
     text: "The support team guided our court setup, membership rules, and deposits so our launch week stayed calm.",
-    image: "https://randomuser.me/api/portraits/women/6.jpg",
+    image: "/images/testimonials/zara-patel.webp",
     name: "Zara Patel",
     role: "Northline Pickleball Club",
   },
   {
     text: "SKED tightened up our daily court operations. Staff can see bookings, payments, and player details in one intuitive dashboard.",
-    image: "https://randomuser.me/api/portraits/men/7.jpg",
+    image: "/images/testimonials/omar-hassan.webp",
     name: "Omar Hassan",
     role: "Dink Factory Courts",
   },
   {
     text: "The court calendar, reminders, and player profiles transformed our workflow and made busy evenings much easier to run.",
-    image: "https://randomuser.me/api/portraits/women/8.jpg",
+    image: "/images/testimonials/leila-kim.webp",
     name: "Leila Kim",
     role: "Metro Paddle Yard",
   },
   {
     text: "The smooth implementation exceeded expectations. It streamlined court scheduling and improved utilization across our facility.",
-    image: "https://randomuser.me/api/portraits/women/9.jpg",
+    image: "/images/testimonials/aisha-patel.webp",
     name: "Aisha Patel",
     role: "Ace Pickleball Club",
   },
@@ -468,7 +468,7 @@ function MarketingHero() {
   return (
     <section className="relative isolate min-h-screen overflow-hidden bg-[#050b0f] text-white">
       <Image
-        src="/images/newbg.webp"
+        src="/images/newbg-optimized.webp"
         alt=""
         fill
         priority
@@ -1050,7 +1050,7 @@ export default async function HomePage() {
           delay={0.08}
         >
           <Image
-            src="/images/cta3.webp"
+            src="/images/cta3-optimized.webp"
             alt=""
             fill
             sizes="100vw"
