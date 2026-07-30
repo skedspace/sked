@@ -34,6 +34,7 @@ import {
   type FaqItem,
   type PublicPageSections,
 } from "@/lib/public-page";
+import { ImageGalleryUpload, ImageUpload } from "@/components/ui/image-upload";
 import { PagePreview } from "./page-preview";
 
 type Page = {
@@ -86,7 +87,7 @@ const STOREFRONT_ITEMS: Array<{
   {
     id: "gallery",
     label: "Gallery",
-    detail: "Photo URLs for venue imagery",
+    detail: "Upload photos of your venue",
     icon: Image,
   },
   {
@@ -627,6 +628,7 @@ export function PageEditor({
 
               {workspaceView === "storefront" ? (
                 <StorefrontEditor
+                  orgId={orgId}
                   active={activeStorefront}
                   sections={sections}
                   update={updateStorefront}
@@ -841,6 +843,7 @@ export function PageEditor({
                 Controls the logo, venue name and small label shown in the public page header.
               </p>
               <PageBrandingEditor
+                orgId={orgId}
                 hero={sections.storefront.hero}
                 update={(patch) => updateStorefront("hero", patch)}
               />
@@ -1010,9 +1013,11 @@ function SectionRow({
 }
 
 function PageBrandingEditor({
+  orgId,
   hero,
   update,
 }: {
+  orgId: string;
   hero: PublicPageSections["storefront"]["hero"];
   update: (patch: Partial<PublicPageSections["storefront"]["hero"]>) => void;
 }) {
@@ -1030,21 +1035,25 @@ function PageBrandingEditor({
         onChange={(publicLabel) => update({ publicLabel })}
         placeholder="Public bookings"
       />
-      <FieldInput
-        label="Logo URL"
-        value={hero.logoUrl}
-        onChange={(logoUrl) => update({ logoUrl })}
-        placeholder="https://..."
-      />
+      <div className="space-y-2">
+        <Label className="text-xs font-black">Logo</Label>
+        <ImageUpload
+          value={hero.logoUrl}
+          folder={`${orgId}/logo`}
+          onChange={(logoUrl) => update({ logoUrl })}
+        />
+      </div>
     </div>
   );
 }
 
 function StorefrontEditor({
+  orgId,
   active,
   sections,
   update,
 }: {
+  orgId: string;
   active: StorefrontSectionId;
   sections: PublicPageSections;
   update: <K extends StorefrontSectionId>(
@@ -1088,12 +1097,14 @@ function StorefrontEditor({
             placeholder="View Courts"
           />
         </div>
-        <FieldInput
-          label="Cover photo URL"
-          value={hero.coverUrl}
-          onChange={(coverUrl) => update("hero", { coverUrl })}
-          placeholder="https://..."
-        />
+        <div className="space-y-2">
+          <Label className="text-xs font-black">Cover photo</Label>
+          <ImageUpload
+            value={hero.coverUrl}
+            folder={`${orgId}/cover`}
+            onChange={(coverUrl) => update("hero", { coverUrl })}
+          />
+        </div>
       </div>
     );
   }
@@ -1136,12 +1147,14 @@ function StorefrontEditor({
           onChange={(title) => update("gallery", { title })}
           placeholder="Gallery"
         />
-        <StringListEditor
-          label="Photo URLs"
-          values={gallery.photos}
-          placeholder="https://..."
-          onChange={(photos) => update("gallery", { photos })}
-        />
+        <div className="space-y-2">
+          <Label className="text-xs font-black">Photos</Label>
+          <ImageGalleryUpload
+            values={gallery.photos}
+            folder={`${orgId}/gallery`}
+            onChange={(photos) => update("gallery", { photos })}
+          />
+        </div>
       </div>
     );
   }

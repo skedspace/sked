@@ -38,6 +38,7 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatCurrency } from "@/lib/utils";
 import { MiniCourt, accentAt } from "@/components/board/court-visuals";
+import { ImageUpload } from "@/components/ui/image-upload";
 
 type Court = {
   id: string;
@@ -893,21 +894,13 @@ export function CourtsView({
             {/* ── Photo upload ── */}
             <div className="space-y-2 sm:col-span-2">
               <Label>Court Photo</Label>
-              <div className="flex items-start gap-4">
-                <div className="space-y-2">
-                  <p className="text-xs text-[#6b7068]">
-                    Paste an image URL:
-                  </p>
-                  <Input
-                    placeholder="https://example.com/court.jpg"
-                    value={formState.photoUrl}
-                    onChange={(e) =>
-                      setFormState((prev) => ({ ...prev, photoUrl: e.target.value }))
-                    }
-                    className="text-xs"
-                  />
-                </div>
-              </div>
+              <ImageUpload
+                value={formState.photoUrl}
+                onChange={(photoUrl) =>
+                  setFormState((prev) => ({ ...prev, photoUrl }))
+                }
+                folder={`${orgId}/courts`}
+              />
             </div>
 
             {/* ── Location ── */}
