@@ -1,74 +1,26 @@
 "use client";
 import React from "react";
 
-const testimonials = [
-  {
-    text: "This ERP revolutionized our operations, streamlining finance and inventory. The cloud-based platform keeps us productive, even remotely.",
-    image: "https://randomuser.me/api/portraits/women/1.jpg",
-    name: "Briana Patton",
-    role: "Operations Manager",
-  },
-  {
-    text: "Implementing this ERP was smooth and quick. The customizable, user-friendly interface made team training effortless.",
-    image: "https://randomuser.me/api/portraits/men/2.jpg",
-    name: "Bilal Ahmed",
-    role: "IT Manager",
-  },
-  {
-    text: "The support team is exceptional, guiding us through setup and providing ongoing assistance, ensuring our satisfaction.",
-    image: "https://randomuser.me/api/portraits/women/3.jpg",
-    name: "Saman Malik",
-    role: "Customer Support Lead",
-  },
-  {
-    text: "This ERP's seamless integration enhanced our business operations and efficiency. Highly recommend for its intuitive interface.",
-    image: "https://randomuser.me/api/portraits/men/4.jpg",
-    name: "Omar Raza",
-    role: "CEO",
-  },
-  {
-    text: "Its robust features and quick support have transformed our workflow, making us significantly more efficient.",
-    image: "https://randomuser.me/api/portraits/women/5.jpg",
-    name: "Zainab Hussain",
-    role: "Project Manager",
-  },
-  {
-    text: "The smooth implementation exceeded expectations. It streamlined processes, improving overall business performance.",
-    image: "https://randomuser.me/api/portraits/women/6.jpg",
-    name: "Aliza Khan",
-    role: "Business Analyst",
-  },
-  {
-    text: "Our business functions improved with a user-friendly design and positive customer feedback.",
-    image: "https://randomuser.me/api/portraits/men/7.jpg",
-    name: "Farhan Siddiqui",
-    role: "Marketing Director",
-  },
-  {
-    text: "They delivered a solution that exceeded expectations, understanding our needs and enhancing our operations.",
-    image: "https://randomuser.me/api/portraits/women/8.jpg",
-    name: "Sana Sheikh",
-    role: "Sales Manager",
-  },
-  {
-    text: "Using this ERP, our online presence and conversions significantly improved, boosting business performance.",
-    image: "https://randomuser.me/api/portraits/men/9.jpg",
-    name: "Hassan Ali",
-    role: "E-commerce Manager",
-  },
-];
+type Testimonial = {
+  text: string;
+  image: string;
+  name: string;
+  role: string;
+};
 
 export const TestimonialsColumn = (props: {
   className?: string;
-  testimonials: typeof testimonials;
+  testimonials: Testimonial[];
   duration?: number;
 }) => {
   return (
     <div className={`testimonials-column-group ${props.className || ""}`}>
       <div
-        className="flex flex-col gap-6 pb-6 testimonials-column-scroll"
+        className="testimonials-column-scroll flex flex-col gap-6 pb-6"
         style={
-          { "--scroll-duration": `${props.duration || 10}s` } as React.CSSProperties
+          {
+            "--scroll-duration": `${props.duration || 10}s`,
+          } as React.CSSProperties
         }
       >
         {[
@@ -76,11 +28,11 @@ export const TestimonialsColumn = (props: {
             <React.Fragment key={index}>
               {props.testimonials.map(({ text, image, name, role }, i) => (
                 <div
-                  className="p-10 rounded-3xl border shadow-lg shadow-primary/10 max-w-xs w-full transition-all duration-300 hover:scale-[1.05] hover:shadow-2xl hover:shadow-primary/20 hover:border-primary/40 hover:bg-card testimonial-card"
+                  className="shadow-primary/10 hover:shadow-primary/20 hover:border-primary/40 hover:bg-card testimonial-card w-full max-w-xs rounded-3xl border p-10 shadow-lg transition-all duration-300 hover:scale-[1.05] hover:shadow-2xl"
                   key={i}
                 >
                   <div>{text}</div>
-                  <div className="flex items-center gap-2 mt-5">
+                  <div className="mt-5 flex items-center gap-2">
                     <img
                       width={40}
                       height={40}
@@ -89,10 +41,10 @@ export const TestimonialsColumn = (props: {
                       className="h-10 w-10 rounded-full"
                     />
                     <div className="flex flex-col">
-                      <div className="font-medium tracking-tight leading-5">
+                      <div className="leading-5 font-medium tracking-tight">
                         {name}
                       </div>
-                      <div className="leading-5 opacity-60 tracking-tight">
+                      <div className="leading-5 tracking-tight opacity-60">
                         {role}
                       </div>
                     </div>

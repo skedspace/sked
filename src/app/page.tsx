@@ -1091,10 +1091,10 @@ export default async function HomePage() {
       <footer className="bg-[#f7f6ef]">
         <div className="border-t border-black/[0.06]">
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-6 sm:px-8 md:flex-row md:items-center md:justify-between">
-            <p className="text-xs text-[#979a94]">
+            <p className="text-xs text-[#626860]">
               &copy; {new Date().getFullYear()} SKED. All rights reserved.
             </p>
-            <div className="flex gap-6 text-xs text-[#979a94]">
+            <div className="flex gap-6 text-xs text-[#626860]">
               <span>Built for modern pickleball operators.</span>
             </div>
           </div>

@@ -74,5 +74,19 @@
     "node": ">=22.13",
     "pnpm": ">=11.9.0"
   },
+  "browserslist": {
+    "production": [
+      "last 2 Chrome versions",
+      "last 2 Edge versions",
+      "last 2 Firefox versions",
+      "last 2 Safari versions",
+      "not dead"
+    ],
+    "development": [
+      "last 1 Chrome version",
+      "last 1 Firefox version",
+      "last 1 Safari version"
+    ]
+  },
   "packageManager": "pnpm@11.9.0"
 }
