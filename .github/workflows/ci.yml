@@ -40,9 +40,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Setup Supabase
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v2.1.1
         with:
-          version: latest
+          version: 2.101.0
 
       - name: Start Supabase
         run: supabase start
@@ -81,9 +81,9 @@ jobs:
       - run: npx playwright install --with-deps
 
       - name: Setup Supabase
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v2.1.1
         with:
-          version: latest
+          version: 2.101.0
 
       - name: Start Supabase
         run: supabase start
