@@ -1,4 +1,5 @@
 ﻿import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRight,
   CalendarCheck,
@@ -22,7 +23,7 @@ import { AnnualSavingsModal } from "@/app/pricing/annual-savings-modal";
 import { TestimonialsColumn } from "@/components/ui/testimonials-columns-1";
 import { ScrollReveal } from "@/components/marketing/scroll-reveal";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const features = [
   {
@@ -466,9 +467,12 @@ function MarketingLogo() {
 function MarketingHero() {
   return (
     <section className="relative isolate min-h-screen overflow-hidden bg-[#050b0f] text-white">
-      <img
+      <Image
         src="/images/newbg.webp"
         alt=""
+        fill
+        priority
+        sizes="100vw"
         className="absolute inset-0 -z-30 h-full w-full object-cover object-bottom"
       />
       <div className="absolute inset-0 -z-20 bg-[radial-gradient(circle_at_42%_30%,rgba(185,243,75,0.16),transparent_26%),linear-gradient(90deg,rgba(5,11,15,0.50)_0%,transparent_22%,transparent_78%,rgba(5,11,15,0.50)_100%)]" />
@@ -555,7 +559,6 @@ function MarketingHero() {
             ))}
           </div>
         </div>
-
       </div>
 
       <div className="trusted-marquee border-t border-white/10 bg-black/32 py-6 backdrop-blur-md lg:absolute lg:inset-x-0 lg:bottom-0">
@@ -762,7 +765,11 @@ export default async function HomePage() {
           </div>
         </ScrollReveal>
 
-        <ScrollReveal id="how-it-works" className="scroll-mt-20 bg-[#e9e8df]" delay={0.06}>
+        <ScrollReveal
+          id="how-it-works"
+          className="scroll-mt-20 bg-[#e9e8df]"
+          delay={0.06}
+        >
           <div className="mx-auto grid w-full max-w-7xl gap-14 px-5 py-24 sm:px-8 sm:py-32 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24">
             <div className="lg:sticky lg:top-28 lg:self-start">
               <p className="mb-4 flex items-center gap-2 text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase">
@@ -817,7 +824,10 @@ export default async function HomePage() {
         </ScrollReveal>
 
         {/* ── Testimonials ── */}
-        <ScrollReveal className="relative overflow-hidden bg-white" delay={0.08}>
+        <ScrollReveal
+          className="relative overflow-hidden bg-white"
+          delay={0.08}
+        >
           <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
             <div className="mx-auto flex max-w-[540px] flex-col items-center justify-center">
               <div className="flex justify-center">
@@ -982,7 +992,11 @@ export default async function HomePage() {
         </ScrollReveal>
 
         {/* Pricing */}
-        <ScrollReveal id="pricing" className="scroll-mt-24 bg-[#e9e8df]" delay={0.12}>
+        <ScrollReveal
+          id="pricing"
+          className="scroll-mt-24 bg-[#e9e8df]"
+          delay={0.12}
+        >
           <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
             <div className="mx-auto max-w-2xl text-center">
               <p className="mb-4 flex items-center justify-center gap-2 text-xs font-black tracking-[0.18em] text-[#4e7410] uppercase">
@@ -1031,10 +1045,15 @@ export default async function HomePage() {
           </div>
         </ScrollReveal>
 
-        <ScrollReveal className="relative isolate overflow-hidden bg-[#050b0f] text-white" delay={0.08}>
-          <img
+        <ScrollReveal
+          className="relative isolate overflow-hidden bg-[#050b0f] text-white"
+          delay={0.08}
+        >
+          <Image
             src="/images/cta3.webp"
             alt=""
+            fill
+            sizes="100vw"
             className="absolute inset-0 -z-30 h-full w-full object-cover"
           />
           <div className="absolute inset-0 -z-20 bg-[radial-gradient(circle_at_42%_30%,rgba(185,243,75,0.16),transparent_26%),linear-gradient(90deg,rgba(5,11,15,0.50)_0%,transparent_22%,transparent_78%,rgba(5,11,15,0.50)_100%)]" />
