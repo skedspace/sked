@@ -40,6 +40,7 @@ export async function middleware(request: NextRequest) {
     Object.entries(securityHeaders).forEach(([key, value]) =>
       response.headers.set(key, value),
     );
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
     return response;
   };
 
