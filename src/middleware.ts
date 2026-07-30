@@ -12,6 +12,20 @@ export async function middleware(request: NextRequest) {
   const middlewareRequest = new NextRequest(request, {
     headers: requestHeaders,
   });
+  // In dev, React Refresh injects inline scripts without our nonce and connects
+  // to an HMR websocket. A nonce-only script-src blocks those, so the app never
+  // hydrates locally. Relax script-src and connect-src for dev only — production
+  // keeps the strict nonce-based policy. (A nonce present alongside
+  // 'unsafe-inline' makes browsers ignore 'unsafe-inline', so dev drops the
+  // nonce entirely.)
+  const isDev = process.env.NODE_ENV !== "production";
+  const scriptSrc = isDev
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com"
+    : `script-src 'self' 'nonce-${nonce}' https://static.cloudflareinsights.com`;
+  const connectSrc =
+    "connect-src 'self' https://*.supabase.co https://app.posthog.com https://*.posthog.com https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://cloudflareinsights.com https://*.cloudflareinsights.com" +
+    (isDev ? " ws: http://localhost:* http://127.0.0.1:*" : "");
+
   const securityHeaders = {
     "Content-Security-Policy": [
       "default-src 'self'",
@@ -19,17 +33,18 @@ export async function middleware(request: NextRequest) {
       "object-src 'none'",
       "frame-ancestors 'none'",
       "form-action 'self'",
-      `script-src 'self' 'nonce-${nonce}' https://static.cloudflareinsights.com`,
+      scriptSrc,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://*.supabase.co https://images.unsplash.com https://randomuser.me https://avatars.githubusercontent.com",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co https://app.posthog.com https://*.posthog.com https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://cloudflareinsights.com https://*.cloudflareinsights.com",
+      connectSrc,
       "frame-src 'self' https://*.supabase.co",
       "child-src 'self'",
       "media-src 'self'",
       "worker-src 'self' blob:",
       "manifest-src 'self'",
-      "upgrade-insecure-requests",
+      // Forces http→https upgrades; on localhost that breaks HMR assets.
+      ...(isDev ? [] : ["upgrade-insecure-requests"]),
     ].join("; "),
     "Permissions-Policy":
       "accelerometer=(), autoplay=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(self), usb=()",
