@@ -6,6 +6,10 @@
   "regions": ["hkg1"],
   "rewrites": [
     {
+      "source": "/admin/:resource/export",
+      "destination": "/admin/export/:resource"
+    },
+    {
       "source": "/p/:slug",
       "destination": "/p/[slug]"
     },

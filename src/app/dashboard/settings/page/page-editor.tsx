@@ -302,22 +302,6 @@ export function PageEditor({
         return;
       }
 
-      if (process.env.NODE_ENV !== "production") {
-        await fetch("/api/dev/public-page-preview", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...payload,
-            org_id: orgId,
-            org_name: sections.storefront.hero.brandName || orgName,
-            org_slug: customSlug || slug,
-            is_published: isPublished,
-            primary_color: primaryColor,
-            plan: "trial",
-          }),
-        });
-      }
-
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       router.refresh();

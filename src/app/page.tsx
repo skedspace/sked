@@ -23,8 +23,6 @@ import { AnnualSavingsModal } from "@/app/pricing/annual-savings-modal";
 import { TestimonialsColumn } from "@/components/ui/testimonials-columns-1";
 import { ScrollReveal } from "@/components/marketing/scroll-reveal";
 
-export const revalidate = 60;
-
 const features = [
   {
     icon: Globe2,

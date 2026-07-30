@@ -103,7 +103,7 @@ jobs:
           pnpm build
           pnpm start &
           for i in {1..30}; do
-            if curl -fsS http://localhost:3000/api/health >/dev/null; then
+            if curl -fsS http://localhost:3000/health.json >/dev/null; then
               exit 0
             fi
             sleep 2

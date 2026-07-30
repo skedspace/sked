@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "@/lib/database.types";
-import { getDevPublicPagePreview } from "@/lib/dev-public-page-preview";
 import { isDevAuthEnabled } from "@/lib/dev-auth";
 
 type CookieToSet = {
@@ -220,20 +219,8 @@ function createMockClient() {
     },
     from: (table: string) => makeChain(table === "org_members", table),
     rpc: (fn: string, args?: Record<string, unknown>) => {
-      const savedPreview =
-        fn === "get_public_page" && typeof args?.page_slug === "string"
-          ? getDevPublicPagePreview(args.page_slug)
-          : null;
       const result =
-        savedPreview
-          ? {
-              data: {
-                ...savedPreview,
-                services: mockPublicPageResult.data.services,
-              },
-              error: null,
-            }
-          : fn === "get_public_page" && args?.page_slug === MOCK_ORG_SLUG
+        fn === "get_public_page" && args?.page_slug === MOCK_ORG_SLUG
             ? mockPublicPageResult
             : emptyResult;
 
