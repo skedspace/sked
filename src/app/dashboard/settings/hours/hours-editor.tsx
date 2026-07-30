@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,17 +28,11 @@ export function HoursEditor({ locations }: { locations: Location[] }) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
+  // Memoized so the client identity is stable across renders and can safely be
+  // listed as a hook dependency.
+  const supabase = useMemo(() => createClient(), []);
 
-  useEffect(() => {
-    if (!selectedLocation) {
-      setLoadingInitial(false);
-      return;
-    }
-    loadHours();
-  }, [selectedLocation]);
-
-  async function loadHours() {
+  const loadHours = useCallback(async () => {
     setLoadingInitial(true);
     const { data } = await supabase
       .from("operating_hours")
@@ -60,7 +54,15 @@ export function HoursEditor({ locations }: { locations: Location[] }) {
       );
     }
     setLoadingInitial(false);
-  }
+  }, [supabase, selectedLocation]);
+
+  useEffect(() => {
+    if (!selectedLocation) {
+      setLoadingInitial(false);
+      return;
+    }
+    loadHours();
+  }, [selectedLocation, loadHours]);
 
   function updateHour(weekday: number, field: "opens_at" | "closes_at" | "is_active", value: string | boolean) {
     setHours((prev) =>

@@ -178,8 +178,9 @@ export function ReviewsView({
   const supabase = createClient();
   const db = supabase as any;
   const selectedDateValue = new Date(selectedDate);
-  const weekStartValue = new Date(weekStart);
-  const weekEndValue = new Date(weekEnd);
+  // Memoized so the useMemo hooks below don't recompute on every render.
+  const weekStartValue = useMemo(() => new Date(weekStart), [weekStart]);
+  const weekEndValue = useMemo(() => new Date(weekEnd), [weekEnd]);
   const [tab, setTab] = useState("all");
   const [page, setPage] = useState(1);
   const [showFilterToolbar, setShowFilterToolbar] = useState(true);

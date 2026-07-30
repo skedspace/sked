@@ -175,9 +175,13 @@ export function ReportsView({
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 3;
   const selectedDateValue = new Date(selectedDate);
-  const weekStartValue = new Date(weekStart);
+  // Memoized so the useMemo hooks below don't recompute on every render.
+  const weekStartValue = useMemo(() => new Date(weekStart), [weekStart]);
   const weekEndValue = new Date(weekEnd);
-  const previousWeekStartValue = new Date(previousWeekStart);
+  const previousWeekStartValue = useMemo(
+    () => new Date(previousWeekStart),
+    [previousWeekStart],
+  );
   const weekEndDisplay = addDays(weekEndValue, -1);
 
   const metrics = useMemo(() => {

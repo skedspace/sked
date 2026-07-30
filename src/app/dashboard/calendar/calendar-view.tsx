@@ -247,16 +247,24 @@ export function CalendarView({
   // Auto-suggest earliest available time when resource/service/date changes
   // (skip first run — initial formState already has a default time)
   const initialRender = useRef(true);
+  // Latest bookings/services are read through a ref so the effect below sees
+  // fresh data without re-firing on every refresh and clobbering a manual pick.
+  const suggestionData = useRef({ localBookings, services });
+  useEffect(() => {
+    suggestionData.current = { localBookings, services };
+  }, [localBookings, services]);
   useEffect(() => {
     if (initialRender.current) {
       initialRender.current = false;
       return;
     }
     if (!formState.resourceId || !formState.serviceId) return;
-    const service = services.find((s) => s.id === formState.serviceId);
+    const { localBookings: latestBookings, services: latestServices } =
+      suggestionData.current;
+    const service = latestServices.find((s) => s.id === formState.serviceId);
     if (!service) return;
     const suggested = getNextAvailableTime(
-      localBookings,
+      latestBookings,
       formState.resourceId,
       service.duration_min,
       formState.date,
