@@ -232,10 +232,13 @@ export function PageEditor({
   const mutedColor = activeTheme.colors[3]!;
   const previewSlug = customSlug || slug;
   const displaySlug = previewSlug || "your-business";
+  // Use the public subdomain ({slug}.sked.space) rather than the /p/{slug}
+  // path — it matches the address shown under the heading, and the Cloudflare
+  // worker rewrites it back to /p/{slug} while preserving ?preview=1.
   const publicUrl = useMemo(
     () =>
       previewSlug
-        ? `/p/${encodeURIComponent(previewSlug)}?preview=1`
+        ? `https://${previewSlug}.sked.space?preview=1`
         : "/dashboard/settings/page",
     [previewSlug],
   );
