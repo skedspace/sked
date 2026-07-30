@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   CheckCircle2,
@@ -26,7 +25,6 @@ export function OrgSetupForm({ termMonths }: { termMonths?: number | null }) {
   const [availabilityMessage, setAvailabilityMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   const analytics = useAnalytics();
   const trackedStart = useRef(false);
 
@@ -142,8 +140,11 @@ export function OrgSetupForm({ termMonths }: { termMonths?: number | null }) {
         }
         window.location.href = checkoutData.checkoutUrl;
       } else {
-        router.push("/dashboard");
-        router.refresh();
+        // Full navigation: the membership this route just created did not exist
+        // when the router prefetched /dashboard, and that stale entry redirects
+        // straight back to /onboarding.
+        window.location.assign("/dashboard");
+        return;
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

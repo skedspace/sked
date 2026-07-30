@@ -55,6 +55,7 @@ Required variables (see `.env.example` for full list):
 | `SEMAPHORE_API_KEY` | Semaphore dashboard | SMS OTP |
 | `PAYMONGO_SECRET_KEY` | PayMongo dashboard | Payment processing |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | Local dev |
+| `SUPER_ADMIN_EMAIL` | Your own email | Command Center (`/admin`) access |
 | `SENTRY_DSN` | Sentry project settings | Error tracking |
 | `NEXT_PUBLIC_POSTHOG_KEY` | PostHog project settings | Analytics |
 
@@ -288,6 +289,11 @@ pnpm db:types  # Regenerate types
 pnpm build     # Full production build
 # Check for module resolution, type errors
 ```
+
+### Sign-in does not reach the dashboard, or /admin returns 404
+See [auth-configuration.md](./auth-configuration.md) — the Supabase Site URL /
+Redirect URLs allowlist and the `SUPER_ADMIN_EMAIL`, `SUPABASE_SERVICE_ROLE_KEY`
+env vars are the usual causes.
 
 ---
 

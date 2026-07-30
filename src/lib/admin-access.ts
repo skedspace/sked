@@ -100,10 +100,40 @@ export const getCurrentAdminAccess = cache(async () => {
     };
   }
 
-  const admin = createAdminClient();
-  const current = await admin.auth.admin.getUserById(session.user.id);
-  const freshUser = current.data.user ?? session.user;
+  // The session's copy of app_metadata is as old as the access token, so the
+  // service role reads the user back to pick up a just-granted platform role.
+  // A missing service-role key must not lock the Command Center out entirely —
+  // fall back to what the session already carries.
+  let freshUser = session.user;
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const admin = createAdminClient();
+      const current = await admin.auth.admin.getUserById(session.user.id);
+      if (current.error) throw new Error(current.error.message);
+      freshUser = current.data.user ?? session.user;
+    } catch (err) {
+      console.error(
+        "[getCurrentAdminAccess] could not refresh user",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  } else {
+    console.error(
+      "[getCurrentAdminAccess] SUPABASE_SERVICE_ROLE_KEY is not set — using the session's platform role",
+    );
+  }
+
   const role = platformRoleFromUser(freshUser);
+
+  if (role !== "super_admin") {
+    // The Command Center answers 404 rather than 403, so without this the
+    // reason for the refusal is invisible.
+    console.warn(
+      `[getCurrentAdminAccess] ${freshUser.email ?? freshUser.id} is not a super admin ` +
+        `(app_metadata.platform_role=${text(freshUser.app_metadata?.platform_role) || "unset"}, ` +
+        `allowlisted emails=${superAdminEmails().length})`,
+    );
+  }
 
   return {
     signedIn: true,

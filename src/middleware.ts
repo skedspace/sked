@@ -44,6 +44,30 @@ export async function middleware(request: NextRequest) {
     return response;
   };
 
+  // Supabase falls back to the project's Site URL when a link's redirect target
+  // is missing from the Redirect URLs allowlist, so confirmation and OAuth
+  // codes can land on the landing page instead of /auth/callback — the user
+  // sees the marketing page with `?code=…` stuck on the end and stays signed
+  // out. Forward anything that is plainly an auth landing to the callback.
+  if (pathname === "/") {
+    const params = request.nextUrl.searchParams;
+    const isAuthLanding =
+      params.has("code") ||
+      params.has("token_hash") ||
+      params.has("error_description");
+
+    if (isAuthLanding) {
+      const callbackUrl = new URL("/auth/callback", request.url);
+      params.forEach((value, key) => callbackUrl.searchParams.set(key, value));
+      if (!callbackUrl.searchParams.has("next")) {
+        // /dashboard sends users without an organization on to /onboarding, so
+        // this is the right target for both confirmation and sign-in links.
+        callbackUrl.searchParams.set("next", "/dashboard");
+      }
+      return applySecurityHeaders(NextResponse.redirect(callbackUrl));
+    }
+  }
+
   // Dev mode: allow all paths without auth
   if (DEV_AUTH_ENABLED) {
     return applySecurityHeaders(next());

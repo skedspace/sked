@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { PostHogProvider } from "@/components/shared/posthog-provider";
 import { CookieConsent } from "@/components/shared/cookie-consent";
 import { ServiceWorkerRegister } from "@/components/shared/service-worker-register";
+import { AuthUrlSession } from "@/components/shared/auth-url-session";
 
 // CSP uses a request-specific nonce, so layouts must render per request rather
 // than being served from an ISR snapshot with scripts carrying an old nonce.
@@ -31,6 +32,7 @@ export default function RootLayout({
         <TooltipProvider>
           <PostHogProvider>
             <ErrorBoundary>{children}</ErrorBoundary>
+            <AuthUrlSession />
             <CookieConsent />
             <ServiceWorkerRegister />
           </PostHogProvider>

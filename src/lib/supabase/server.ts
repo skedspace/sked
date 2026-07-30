@@ -240,6 +240,10 @@ function createMockClient() {
         data: { session: mockSessionData, user: mockSessionData.user },
         error: null,
       }),
+      verifyOtp: async () => ({
+        data: { session: mockSessionData, user: mockSessionData.user },
+        error: null,
+      }),
     },
     from: (table: string) => makeChain(table === "org_members", table),
     rpc: (fn: string, args?: Record<string, unknown>) => {
@@ -281,9 +285,18 @@ export function createClient() {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet: CookieToSet[]) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options),
-          );
+          // Server Components render with a read-only cookie store, so writing
+          // a rotated refresh token throws there. Swallowing it is safe: the
+          // middleware client runs on every request and persists the refreshed
+          // cookies. Without this guard the throw escapes `auth.getSession()`
+          // and takes down the whole page render instead.
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options),
+            );
+          } catch {
+            // no-op — see above
+          }
         },
       },
     },

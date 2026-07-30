@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +30,23 @@ function GoogleIcon() {
   );
 }
 
+/** Supabase auth errors are terse; the common ones deserve an explanation. */
+function toAuthMessage(err: unknown) {
+  const message = err instanceof Error ? err.message : "";
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("email not confirmed")) {
+    return "This email is not confirmed yet. Open the confirmation link we emailed you, then sign in.";
+  }
+  if (normalized.includes("invalid login credentials")) {
+    return "That email and password combination does not match an account.";
+  }
+  if (normalized.includes("user already registered")) {
+    return "An account already exists for this email. Sign in instead.";
+  }
+  return message || "Something went wrong";
+}
+
 export function AuthForm({
   mode,
   redirectTo,
@@ -43,14 +59,15 @@ export function AuthForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(initialError);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   const supabase = createClient();
   const analytics = useAnalytics();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setLoading(true);
 
     try {
@@ -60,32 +77,38 @@ export function AuthForm({
           password,
         });
         if (error) throw error;
-        router.push(redirectTo ?? "/dashboard");
-        router.refresh();
-      } else {
-        const next = redirectTo ?? "/onboarding";
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-          },
-        });
-        if (error) throw error;
-
-        if (data.user?.id) {
-          analytics.trackSignUp(data.user.id);
-        }
-
-        if (data.session) {
-          router.push(next);
-          router.refresh();
-        } else {
-          setError("Check your email for the confirmation link.");
-        }
+        // A full navigation, not router.push(): the session lives in cookies
+        // that were only just written, and the App Router can answer the push
+        // from its client cache before the server ever sees them — which lands
+        // the user back on /login.
+        window.location.assign(redirectTo ?? "/dashboard");
+        return;
       }
+
+      const next = redirectTo ?? "/onboarding";
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        },
+      });
+      if (error) throw error;
+
+      if (data.user?.id) {
+        analytics.trackSignUp(data.user.id);
+      }
+
+      if (data.session) {
+        window.location.assign(next);
+        return;
+      }
+
+      setNotice(
+        `We sent a confirmation link to ${email}. Open it to finish creating your account — you cannot sign in until the email is confirmed.`,
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(toAuthMessage(err));
     } finally {
       setLoading(false);
     }
@@ -186,6 +209,15 @@ export function AuthForm({
           className="border-destructive/20 bg-destructive/5 text-destructive rounded-xl border px-3.5 py-3 text-sm"
         >
           {error}
+        </p>
+      )}
+
+      {notice && (
+        <p
+          role="status"
+          className="rounded-xl border border-black/10 bg-black/[0.03] px-3.5 py-3 text-sm"
+        >
+          {notice}
         </p>
       )}
 

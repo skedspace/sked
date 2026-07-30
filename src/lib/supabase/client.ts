@@ -198,6 +198,10 @@ function createMockClient() {
         data: { provider: "google", url: null },
         error: null,
       }),
+      setSession: async () => ({
+        data: { user: MOCK_USER, session: { user: MOCK_USER } },
+        error: null,
+      }),
     },
     from: (table: string) => createQueryBuilder(table),
     rpc: (_fn: string, _args?: Record<string, unknown>) => ({

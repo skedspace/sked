@@ -21,7 +21,8 @@
     "supabase:status": "supabase status",
     "supabase:stop": "supabase stop",
     "supabase:studio": "open http://localhost:54323",
-    "paymongo:webhook:register": "node --env-file=.env.local scripts/register-platform-paymongo-webhook.mjs"
+    "paymongo:webhook:register": "node --env-file=.env.local scripts/register-platform-paymongo-webhook.mjs",
+    "admin:promote": "node --env-file=.env.local scripts/promote-super-admin.mjs"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.20",
