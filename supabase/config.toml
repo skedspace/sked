@@ -1,6 +1,4 @@
-[project]
-id = "sked"
-name = "sked"
+project_id = "sked"
 
 [auth]
 enabled = true
@@ -28,4 +26,3 @@ port = 54323
 [storage]
 enabled = true
 file_size_limit = "10MB"
-image_transform = true
