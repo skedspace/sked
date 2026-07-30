@@ -1,6 +1,13 @@
 "use client";
 
-import { Suspense, createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  Suspense,
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { env } from "@/lib/env";
 
@@ -38,9 +45,10 @@ export function PostHogProvider({ children }: { children: ReactNode }) {
 
     async function init() {
       try {
-        const optionalImport = new Function("specifier", "return import(specifier)") as (
-          specifier: string,
-        ) => Promise<any>;
+        const optionalImport = new Function(
+          "specifier",
+          "return import(specifier)",
+        ) as (specifier: string) => Promise<any>;
         const { posthog } = await optionalImport("posthog-js");
         posthog.init(env.NEXT_PUBLIC_POSTHOG_KEY!, {
           api_host: env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://app.posthog.com",
@@ -54,10 +62,15 @@ export function PostHogProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    init();
+    const schedule =
+      "requestIdleCallback" in window
+        ? (callback: () => void) => window.requestIdleCallback(callback)
+        : (callback: () => void) => window.setTimeout(callback, 2000);
+    const idleHandle = schedule(init);
 
     return () => {
       cancelled = true;
+      if (typeof idleHandle === "number") window.clearTimeout(idleHandle);
     };
   }, []);
 
@@ -91,7 +104,9 @@ function PostHogPageViewTracker({ client }: { client: any | null }) {
     if (!client) return;
 
     client.capture("$pageview", {
-      path: pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : ""),
+      path:
+        pathname +
+        (searchParams?.toString() ? `?${searchParams.toString()}` : ""),
     });
   }, [client, pathname, searchParams]);
 
