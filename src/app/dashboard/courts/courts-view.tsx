@@ -247,19 +247,24 @@ export function CourtsView({
   // Merge server resources with locally added courts
   const [addedCourts, setAddedCourts] = useState<Court[]>([]);
   const [clientResources, setClientResources] = useState<Court[]>([]);
+  // Courts deleted this session — hidden until the server refresh drops them
+  // from the props/client rows.
+  const [deletedCourtIds, setDeletedCourtIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const allResources = useMemo(() => {
     // Prefer client-fetched rows so newly added courts appear immediately.
     const base = clientResources.length > 0 ? clientResources : resources;
     // De-duplicate by id: after an insert the optimistic entry in
     // `addedCourts` and the refreshed server row share the same id, so a plain
-    // concat would render the new court twice.
+    // concat would render the new court twice. Deleted ids are filtered out.
     const seen = new Set<string>();
     return [...base, ...addedCourts].filter((court) => {
-      if (seen.has(court.id)) return false;
+      if (seen.has(court.id) || deletedCourtIds.has(court.id)) return false;
       seen.add(court.id);
       return true;
     });
-  }, [resources, clientResources, addedCourts]);
+  }, [resources, clientResources, addedCourts, deletedCourtIds]);
 
   // On mount, fetch court rows from client-side Supabase.
   useEffect(() => {
@@ -298,6 +303,11 @@ export function CourtsView({
   const [formOpen, setFormOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Deleting the court currently open in the edit dialog (inline confirm).
+  const [confirmDeleteCourt, setConfirmDeleteCourt] = useState(false);
+  const [deletingCourt, setDeletingCourt] = useState(false);
+  const [courtDeleteError, setCourtDeleteError] = useState<string | null>(null);
   const [formState, setFormState] = useState<CourtFormState>(() =>
     initialForm(null, locations, serviceLinks),
   );
@@ -541,10 +551,53 @@ export function CourtsView({
     router.push(`/dashboard/courts?date=${dateParam(date)}`);
   }
 
+  function resetCourtDelete() {
+    setConfirmDeleteCourt(false);
+    setDeletingCourt(false);
+    setCourtDeleteError(null);
+  }
+
+  async function handleDeleteCourt() {
+    if (!formState.id) return;
+    const courtId = formState.id;
+    setDeletingCourt(true);
+    setCourtDeleteError(null);
+    try {
+      const { error } = await db.from("resources").delete().eq("id", courtId);
+
+      if (error) {
+        // 23503 = foreign_key_violation: bookings reference resources(id) with
+        // no cascade, so a court with bookings cannot be removed.
+        const isInUse =
+          error.code === "23503" ||
+          /foreign key|violates|referenced/i.test(error.message ?? "");
+        setCourtDeleteError(
+          isInUse
+            ? "This court has existing bookings, so it can't be deleted. Set it to Inactive instead."
+            : error.message || "Could not delete the court.",
+        );
+        return;
+      }
+
+      setDeletedCourtIds((prev) => new Set(prev).add(courtId));
+      setAddedCourts((prev) => prev.filter((c) => c.id !== courtId));
+      setSelectedCourtId((cur) => (cur === courtId ? "" : cur));
+      setFormOpen(false);
+      router.refresh();
+    } catch (err) {
+      setCourtDeleteError(
+        err instanceof Error ? err.message : "Could not delete the court.",
+      );
+    } finally {
+      setDeletingCourt(false);
+    }
+  }
+
   function openAddDialog() {
     setFormState(initialForm(null, locations, serviceLinks));
     setFormError(null);
     resetNewService();
+    resetCourtDelete();
     setFormOpen(true);
   }
 
@@ -552,6 +605,7 @@ export function CourtsView({
     setFormState(initialForm(court, locations, serviceLinks));
     setFormError(null);
     resetNewService();
+    resetCourtDelete();
     setFormOpen(true);
   }
 
@@ -565,6 +619,7 @@ export function CourtsView({
     });
     setFormError(null);
     resetNewService();
+    resetCourtDelete();
     setFormOpen(true);
   }
 
@@ -1496,25 +1551,76 @@ export function CourtsView({
                 {formError}
               </p>
             )}
-            <div className="flex justify-end gap-3 sm:col-span-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setFormOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {(() => {
-                  if (saving) return "Saving...";
-                  if (formState.id) return "Save changes";
-                  const count = Math.min(
-                    50,
-                    Math.max(1, Number.parseInt(formState.quantity, 10) || 1),
-                  );
-                  return count > 1 ? `Add ${count} courts` : "Add court";
-                })()}
-              </Button>
+            {courtDeleteError && (
+              <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 sm:col-span-2">
+                {courtDeleteError}
+              </p>
+            )}
+            <div className="flex flex-col gap-3 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between">
+              {formState.id ? (
+                confirmDeleteCourt ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[#6b7068]">
+                      Delete this court?
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setConfirmDeleteCourt(false);
+                        setCourtDeleteError(null);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-red-600 text-white hover:bg-red-700"
+                      disabled={deletingCourt}
+                      onClick={handleDeleteCourt}
+                    >
+                      {deletingCourt ? "Deleting…" : "Delete"}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                    onClick={() => {
+                      setConfirmDeleteCourt(true);
+                      setCourtDeleteError(null);
+                    }}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete court
+                  </Button>
+                )
+              ) : (
+                <span className="hidden sm:block" />
+              )}
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setFormOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {(() => {
+                    if (saving) return "Saving...";
+                    if (formState.id) return "Save changes";
+                    const count = Math.min(
+                      50,
+                      Math.max(1, Number.parseInt(formState.quantity, 10) || 1),
+                    );
+                    return count > 1 ? `Add ${count} courts` : "Add court";
+                  })()}
+                </Button>
+              </div>
             </div>
           </form>
         </DialogContent>
