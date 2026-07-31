@@ -47,8 +47,8 @@ export function CheckoutStatusView({ checkoutId }: { checkoutId: string }) {
               : `This checkout is ${status}. Your organization was not upgraded.`}
         </p>
         {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-        <Link href={paid ? "/dashboard" : "/pricing"} className="mt-8 inline-flex rounded-full bg-[#171a16] px-6 py-3 text-sm font-bold text-white">
-          {paid ? "Open dashboard" : "Return to pricing"}
+        <Link href={paid ? "/dashboard" : "/dashboard/settings/plan"} className="mt-8 inline-flex rounded-full bg-[#171a16] px-6 py-3 text-sm font-bold text-white">
+          {paid ? "Open dashboard" : "Manage plan"}
         </Link>
       </section>
     </main>

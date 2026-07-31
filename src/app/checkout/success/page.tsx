@@ -10,6 +10,6 @@ export default async function CheckoutSuccessPage({
   const { checkout_id: checkoutId } = await searchParams;
   const { data: { session } } = await createClient().auth.getSession();
   if (!session) redirect(`/login?next=${encodeURIComponent(`/checkout/success?checkout_id=${checkoutId ?? ""}`)}`);
-  if (!checkoutId) redirect("/pricing");
+  if (!checkoutId) redirect("/dashboard/settings/plan");
   return <CheckoutStatusView checkoutId={checkoutId} />;
 }

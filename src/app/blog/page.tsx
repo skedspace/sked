@@ -35,7 +35,7 @@ export default function BlogPage() {
           </Link>
           <nav aria-label="Primary navigation" className="flex items-center gap-1 sm:gap-3">
             <Link
-              href="/pricing"
+              href="/#pricing"
               className="text-muted-foreground hover:text-foreground rounded-full px-4 py-2 text-sm font-medium transition-colors hover:bg-black/[0.05]"
             >
               Pricing
@@ -137,7 +137,7 @@ export default function BlogPage() {
             © {new Date().getFullYear()} SKED. The simple way for modern businesses to get booked.
           </p>
           <div className="flex items-center gap-5 text-sm font-semibold">
-            <Link href="/pricing" className="transition-opacity hover:opacity-55">Pricing</Link>
+            <Link href="/#pricing" className="transition-opacity hover:opacity-55">Pricing</Link>
             <Link href="/blog" className="transition-opacity hover:opacity-55">Blog</Link>
             <Link href="/privacy" className="transition-opacity hover:opacity-55">Privacy</Link>
             <Link href="/terms" className="transition-opacity hover:opacity-55">Terms</Link>

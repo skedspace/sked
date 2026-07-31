@@ -485,7 +485,7 @@ export function AdminPricing({ data }: { data: PricingData }) {
                 <li>{data.activeTrials} active trials eligible</li>
                 <li>{data.expiringTrials} trials expiring soon</li>
               </ul>
-              <Link href="/pricing" target="_blank">Preview as Customer <ExternalLink /></Link>
+              <Link href="/#pricing" target="_blank">Preview as Customer <ExternalLink /></Link>
             </article>
           </section>
         </aside>
