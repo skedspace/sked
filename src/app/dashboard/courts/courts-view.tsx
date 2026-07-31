@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Copy,
   Edit3,
   Grid2X2,
   MapPin,
@@ -92,6 +93,7 @@ type CourtFormState = {
   name: string;
   type: string;
   capacity: string;
+  quantity: string;
   isActive: boolean;
   locationMode: "existing" | "new";
   locationId: string;
@@ -146,6 +148,7 @@ function initialForm(
     name: court?.name ?? "",
     type: court?.type ?? SURFACE_OPTIONS[0]!,
     capacity: String(court?.capacity ?? 4),
+    quantity: "1",
     isActive: court?.is_active ?? true,
     locationMode:
       locations.length > 0 ? ("existing" as const) : ("new" as const),
@@ -159,6 +162,51 @@ function initialForm(
       : [],
     photoUrl: court?.photo_url ?? "",
   };
+}
+
+// Generate `count` court names from a base name. If the base ends in a number
+// (e.g. "Court 1"), the number is incremented for each ("Court 1", "Court 2",
+// …). Otherwise the first keeps the base name and the rest get a numeric
+// suffix ("Center Court", "Center Court 2", …).
+function generateCourtNames(base: string, count: number): string[] {
+  const trimmed = base.trim() || "Court";
+  const match = trimmed.match(/^(.*?)(\d+)\s*$/);
+  if (match) {
+    const prefix = match[1];
+    const start = Number.parseInt(match[2]!, 10);
+    const width = match[2]!.length;
+    return Array.from({ length: count }, (_, i) =>
+      `${prefix}${String(start + i).padStart(width, "0")}`,
+    );
+  }
+  return Array.from({ length: count }, (_, i) =>
+    i === 0 ? trimmed : `${trimmed} ${i + 1}`,
+  );
+}
+
+// Pick a unique name for a duplicated court: increment a trailing number until
+// it's free, or append "copy" when the name has no number to bump.
+function nextAvailableName(name: string, taken: Set<string>): string {
+  const trimmed = name.trim() || "Court";
+  const match = trimmed.match(/^(.*?)(\d+)\s*$/);
+  if (match) {
+    const prefix = match[1];
+    const width = match[2]!.length;
+    let n = Number.parseInt(match[2]!, 10) + 1;
+    let candidate = `${prefix}${String(n).padStart(width, "0")}`;
+    while (taken.has(candidate)) {
+      n += 1;
+      candidate = `${prefix}${String(n).padStart(width, "0")}`;
+    }
+    return candidate;
+  }
+  let candidate = `${trimmed} copy`;
+  let i = 2;
+  while (taken.has(candidate)) {
+    candidate = `${trimmed} copy ${i}`;
+    i += 1;
+  }
+  return candidate;
 }
 
 export function CourtsView({
@@ -507,6 +555,19 @@ export function CourtsView({
     setFormOpen(true);
   }
 
+  function openDuplicateDialog(court: Court) {
+    const base = initialForm(court, locations, serviceLinks);
+    const taken = new Set(allResources.map((c) => c.name));
+    setFormState({
+      ...base,
+      id: null,
+      name: nextAvailableName(court.name, taken),
+    });
+    setFormError(null);
+    resetNewService();
+    setFormOpen(true);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
@@ -546,24 +607,41 @@ export function CourtsView({
         return;
       }
 
-      const payload: Record<string, unknown> = {
+      const capacityValue = Math.max(
+        1,
+        Number.parseInt(formState.capacity, 10) || 1,
+      );
+      const sharedFields: Record<string, unknown> = {
         org_id: orgId,
         location_id: locationId,
-        name: formState.name.trim(),
         type: formState.type,
-        capacity: Math.max(1, Number.parseInt(formState.capacity, 10) || 1),
+        capacity: capacityValue,
         is_active: formState.isActive,
       };
-
       if (formState.photoUrl) {
-        payload.photo_url = formState.photoUrl;
+        sharedFields.photo_url = formState.photoUrl;
       }
 
-      let resourceId = formState.id;
+      // Resolve the location object once for optimistic rows.
+      const locationObject =
+        locations.find((l) => l.id === locationId) ??
+        (formState.locationMode === "new"
+          ? {
+              id: locationId,
+              name: formState.locationName.trim() || "New location",
+              address: formState.locationAddress.trim() || null,
+            }
+          : null) ??
+        null;
+
+      // Courts we created/updated, used for service links and optimistic UI.
+      let touchedCourts: Array<{ id: string; name: string }> = [];
+
       if (formState.id) {
+        const name = formState.name.trim();
         const { error } = await db
           .from("resources")
-          .update(payload)
+          .update({ ...sharedFields, name })
           .eq("id", formState.id);
         if (error) {
           console.error("Update court error:", error);
@@ -571,36 +649,54 @@ export function CourtsView({
           setFormError(error.message);
           return;
         }
+        touchedCourts = [{ id: formState.id, name }];
+
+        // Re-sync service links for the edited court.
+        const { error: deleteError } = await db
+          .from("service_resources")
+          .delete()
+          .eq("resource_id", formState.id);
+        if (deleteError) {
+          console.error("Delete service links error:", deleteError);
+          // Non-fatal — court was updated
+        }
       } else {
+        const count = Math.min(
+          50,
+          Math.max(1, Number.parseInt(formState.quantity, 10) || 1),
+        );
+        const names = generateCourtNames(formState.name.trim() || "Court", count);
         const { data, error } = await db
           .from("resources")
-          .insert(payload)
-          .select("id")
-          .single();
+          .insert(names.map((name) => ({ ...sharedFields, name })))
+          .select("id");
 
-        if (error || !data) {
+        if (error || !data || data.length === 0) {
           console.error("Insert court error:", error ?? "No data returned");
           setSaving(false);
-          setFormError(error?.message ?? "Could not create the court.");
+          setFormError(
+            error?.message ??
+              (count > 1
+                ? "Could not create the courts."
+                : "Could not create the court."),
+          );
           return;
         }
-        resourceId = data.id;
+        touchedCourts = (data as Array<{ id: string }>).map((row, i) => ({
+          id: row.id,
+          name: names[i] ?? formState.name.trim(),
+        }));
       }
 
-      const { error: deleteError } = await db
-        .from("service_resources")
-        .delete()
-        .eq("resource_id", resourceId);
-      if (deleteError) {
-        console.error("Delete service links error:", deleteError);
-        // Non-fatal — court was created
-      }
+      // Link the selected services to every court we just created/updated.
       if (formState.serviceIds.length > 0) {
         const { error } = await db.from("service_resources").insert(
-          formState.serviceIds.map((serviceId) => ({
-            resource_id: resourceId,
-            service_id: serviceId,
-          })),
+          touchedCourts.flatMap((court) =>
+            formState.serviceIds.map((serviceId) => ({
+              resource_id: court.id,
+              service_id: serviceId,
+            })),
+          ),
         );
         if (error) {
           setSaving(false);
@@ -611,30 +707,24 @@ export function CourtsView({
 
       setSaving(false);
       setFormOpen(false);
-      if (resourceId) {
-        setSelectedCourtId(resourceId);
-        // Add to local state so it shows immediately
+      if (touchedCourts.length > 0) {
+        setSelectedCourtId(touchedCourts[0]!.id);
+        // Add to local state so new courts show immediately.
         setAddedCourts((prev) => [
           ...prev,
-          {
-            id: resourceId,
-            name: formState.name.trim(),
-            type: formState.type,
-            capacity: Math.max(1, Number.parseInt(formState.capacity, 10) || 1),
-            is_active: formState.isActive,
-            location_id: locationId,
-            locations:
-              locations.find((l) => l.id === locationId) ??
-              (formState.locationMode === "new"
-                ? {
-                    id: locationId,
-                    name: formState.locationName.trim() || "New location",
-                    address: formState.locationAddress.trim() || null,
-                    is_active: true,
-                  }
-                : null) ?? null,
-            photo_url: formState.photoUrl || null,
-          } as Court,
+          ...touchedCourts.map(
+            (court) =>
+              ({
+                id: court.id,
+                name: court.name,
+                type: formState.type,
+                capacity: capacityValue,
+                is_active: formState.isActive,
+                location_id: locationId,
+                locations: locationObject,
+                photo_url: formState.photoUrl || null,
+              }) as Court,
+          ),
         ]);
       }
       router.refresh();
@@ -837,6 +927,17 @@ export function CourtsView({
                     </div>
                     <button
                       type="button"
+                      aria-label={`Duplicate ${court.name}`}
+                      title="Duplicate court"
+                      onClick={(e) => { e.stopPropagation(); openDuplicateDialog(court); }}
+                      className="rounded-lg p-2 text-[#6b7068] hover:bg-black/5 hover:text-[#171a16]"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Edit ${court.name}`}
+                      title="Edit court"
                       onClick={(e) => { e.stopPropagation(); openEditDialog(court); }}
                       className="rounded-lg p-2 text-[#6b7068] hover:bg-black/5 hover:text-[#171a16]"
                     >
@@ -1041,6 +1142,31 @@ export function CourtsView({
                 { value: "inactive", label: "Inactive" },
               ]}
             />
+
+            {/* ── Bulk quantity (create only) ── */}
+            {!formState.id && (
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="court-quantity">How many courts?</Label>
+                <Input
+                  id="court-quantity"
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={formState.quantity}
+                  onChange={(event) =>
+                    setFormState((state) => ({
+                      ...state,
+                      quantity: event.target.value,
+                    }))
+                  }
+                />
+                <p className="text-[11px] text-[#8c9185]">
+                  Create several identical courts at once (up to 50). They&apos;re
+                  auto-numbered from the name above — e.g. &ldquo;Court 1&rdquo;,
+                  &ldquo;Court 2&rdquo;, &ldquo;Court 3&rdquo;.
+                </p>
+              </div>
+            )}
 
             {/* ── Photo upload ── */}
             <div className="space-y-2 sm:col-span-2">
@@ -1379,11 +1505,15 @@ export function CourtsView({
                 Cancel
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving
-                  ? "Saving..."
-                  : formState.id
-                    ? "Save changes"
-                    : "Add court"}
+                {(() => {
+                  if (saving) return "Saving...";
+                  if (formState.id) return "Save changes";
+                  const count = Math.min(
+                    50,
+                    Math.max(1, Number.parseInt(formState.quantity, 10) || 1),
+                  );
+                  return count > 1 ? `Add ${count} courts` : "Add court";
+                })()}
               </Button>
             </div>
           </form>
