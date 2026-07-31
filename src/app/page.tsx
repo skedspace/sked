@@ -894,6 +894,18 @@ export default async function HomePage() {
                   a: "We don't have a standalone mobile app yet, but the dashboard works perfectly in any mobile browser. A native app is on the roadmap.",
                 },
                 {
+                  q: "What happens when my 14-day trial ends?",
+                  a: "Your trial lasts 14 days with full access to all features. When it ends, you'll need to subscribe to the Monthly plan to continue accepting bookings. No data is lost -- your settings, services, and customers are all preserved.",
+                },
+                {
+                  q: "Do I need to enter a credit card to start the trial?",
+                  a: "No. Your 14-day trial is completely free -- no card required. You'll only be asked for payment when you decide to subscribe.",
+                },
+                {
+                  q: "Is there a discount for annual billing?",
+                  a: "Yes. Annual billing options are available with savings compared to paying monthly.",
+                },
+                {
                   q: "Can I cancel my subscription anytime?",
                   a: "Yes. There are no lock-in contracts. You can downgrade or cancel from the dashboard at any time. If you cancel, you keep access until the end of your billing period.",
                 },
