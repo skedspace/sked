@@ -494,9 +494,7 @@ function MarketingHero() {
         </div>
         <div className="flex items-center gap-4">
           <Link
-            href={
-              process.env.NODE_ENV !== "production" ? "/dashboard" : "/login"
-            }
+            href="/login"
             className="hidden text-base font-semibold text-white/88 hover:text-white sm:inline"
           >
             Sign in
@@ -635,9 +633,7 @@ export default async function HomePage() {
               Blog
             </a>
             <Link
-              href={
-                process.env.NODE_ENV !== "production" ? "/dashboard" : "/login"
-              }
+              href="/login"
               className="text-foreground rounded-full px-3 py-2 text-sm font-semibold transition-colors hover:bg-black/[0.05] sm:px-4"
             >
               Sign in
