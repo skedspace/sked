@@ -213,6 +213,7 @@ function createMockClient() {
       from: (_bucket: string) => ({
         upload: async (_path: string, _file: File) => ({ data: { path: _path }, error: null }),
         getPublicUrl: (_path: string) => ({ data: { publicUrl: `https://mock.storage/${_path}` } }),
+        remove: async () => ({ data: [], error: null }),
       }),
     },
   };

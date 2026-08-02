@@ -41,6 +41,10 @@ import { createClient } from "@/lib/supabase/client";
 import { cn, formatCurrency } from "@/lib/utils";
 import { MiniCourt, accentAt } from "@/components/board/court-visuals";
 import { ImageUpload } from "@/components/ui/image-upload";
+import {
+  getOwnedPublicAssetPath,
+  removeOwnedPublicImage,
+} from "@/lib/storage";
 
 type Court = {
   id: string;
@@ -551,6 +555,40 @@ export function CourtsView({
     router.push(`/dashboard/courts?date=${dateParam(date)}`);
   }
 
+  async function cleanupCourtPhoto(
+    photoUrl: string | null | undefined,
+    courtId: string,
+  ) {
+    if (!photoUrl || !getOwnedPublicAssetPath(photoUrl, orgId, "courts")) {
+      return;
+    }
+
+    try {
+      // A duplicated court can temporarily share a photo URL. Keep the object
+      // until no other court in this organization references it.
+      const { data: otherCourts, error: referenceError } = await db
+        .from("resources")
+        .select("id")
+        .eq("org_id", orgId)
+        .eq("photo_url", photoUrl)
+        .neq("id", courtId)
+        .limit(1);
+
+      if (referenceError) {
+        console.error("Could not check court photo references:", referenceError);
+        return;
+      }
+      if (otherCourts && otherCourts.length > 0) return;
+
+      await removeOwnedPublicImage(photoUrl, orgId, "courts");
+    } catch (error) {
+      // The database change has already succeeded. Do not make a successful
+      // edit/delete look like a failure just because best-effort cleanup hit a
+      // transient storage error; leave a diagnostic for operators instead.
+      console.error("Could not remove court photo from public-assets:", error);
+    }
+  }
+
   function resetCourtDelete() {
     setConfirmDeleteCourt(false);
     setDeletingCourt(false);
@@ -560,6 +598,7 @@ export function CourtsView({
   async function handleDeleteCourt() {
     if (!formState.id) return;
     const courtId = formState.id;
+    const storedPhotoUrl = allResources.find((court) => court.id === courtId)?.photo_url;
     setDeletingCourt(true);
     setCourtDeleteError(null);
     try {
@@ -579,6 +618,7 @@ export function CourtsView({
         return;
       }
 
+      await cleanupCourtPhoto(storedPhotoUrl, courtId);
       setDeletedCourtIds((prev) => new Set(prev).add(courtId));
       setAddedCourts((prev) => prev.filter((c) => c.id !== courtId));
       setSelectedCourtId((cur) => (cur === courtId ? "" : cur));
@@ -666,16 +706,29 @@ export function CourtsView({
         1,
         Number.parseInt(formState.capacity, 10) || 1,
       );
+      const editingCourt = formState.id
+        ? allResources.find((court) => court.id === formState.id)
+        : null;
+      const previousPhotoUrl = editingCourt?.photo_url ?? null;
+      const nextPhotoUrl = formState.photoUrl.trim() || null;
+      const previousPhotoPath = getOwnedPublicAssetPath(
+        previousPhotoUrl,
+        orgId,
+        "courts",
+      );
+      const nextPhotoPath = getOwnedPublicAssetPath(
+        nextPhotoUrl,
+        orgId,
+        "courts",
+      );
       const sharedFields: Record<string, unknown> = {
         org_id: orgId,
         location_id: locationId,
         type: formState.type,
         capacity: capacityValue,
         is_active: formState.isActive,
+        photo_url: nextPhotoUrl,
       };
-      if (formState.photoUrl) {
-        sharedFields.photo_url = formState.photoUrl;
-      }
 
       // Resolve the location object once for optimistic rows.
       const locationObject =
@@ -705,6 +758,10 @@ export function CourtsView({
           return;
         }
         touchedCourts = [{ id: formState.id, name }];
+
+        if (previousPhotoPath && previousPhotoPath !== nextPhotoPath) {
+          await cleanupCourtPhoto(previousPhotoUrl, formState.id);
+        }
 
         // Re-sync service links for the edited court.
         const { error: deleteError } = await db

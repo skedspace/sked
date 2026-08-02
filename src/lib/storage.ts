@@ -16,6 +16,111 @@ export const ACCEPTED_IMAGE_TYPES = [
   "image/avif",
 ];
 
+const PUBLIC_OBJECT_PATH_PREFIX = `/storage/v1/object/public/${PUBLIC_ASSETS_BUCKET}/`;
+
+function decodeSafePathSegments(pathname: string): string[] | null {
+  const rawSegments = pathname.split("/");
+  if (rawSegments.some((segment) => segment.length === 0)) return null;
+
+  try {
+    const segments = rawSegments.map((segment) => decodeURIComponent(segment));
+    if (
+      segments.some(
+        (segment) =>
+          segment.length === 0 ||
+          segment === "." ||
+          segment === ".." ||
+          segment.includes("/") ||
+          segment.includes("\\") ||
+          segment.includes("\0"),
+      )
+    ) {
+      return null;
+    }
+    return segments;
+  } catch {
+    // Malformed percent-encoding is not a storage path we should touch.
+    return null;
+  }
+}
+
+function safeFolderSegments(orgId: string, folder: string): string[] | null {
+  return decodeSafePathSegments(`${orgId}/${folder.replace(/^\/+|\/+$/g, "")}`);
+}
+
+/**
+ * Resolves a URL produced by Supabase's public-assets bucket to an object
+ * path, but only when it belongs to the supplied organization/folder.
+ *
+ * External URLs and URLs for another bucket/project intentionally return null.
+ * Keeping this check next to the delete helper prevents a pasted URL from ever
+ * being sent to storage.remove().
+ */
+export function getOwnedPublicAssetPath(
+  publicUrl: string | null | undefined,
+  orgId: string,
+  folder = "courts",
+): string | null {
+  if (!publicUrl?.trim() || !orgId.trim() || !folder.trim()) return null;
+
+  const configuredSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!configuredSupabaseUrl) return null;
+
+  let assetUrl: URL;
+  let supabaseUrl: URL;
+  try {
+    assetUrl = new URL(publicUrl);
+    supabaseUrl = new URL(configuredSupabaseUrl);
+  } catch {
+    return null;
+  }
+
+  // `origin` excludes credentials, so reject those explicitly as well.
+  if (
+    assetUrl.origin !== supabaseUrl.origin ||
+    assetUrl.username ||
+    assetUrl.password
+  ) {
+    return null;
+  }
+
+  if (!assetUrl.pathname.startsWith(PUBLIC_OBJECT_PATH_PREFIX)) return null;
+
+  const objectPath = assetUrl.pathname.slice(PUBLIC_OBJECT_PATH_PREFIX.length);
+  const objectSegments = decodeSafePathSegments(objectPath);
+  const ownerSegments = safeFolderSegments(orgId, folder);
+  if (!objectSegments || !ownerSegments) return null;
+  if (objectSegments.length <= ownerSegments.length) return null;
+
+  for (let index = 0; index < ownerSegments.length; index += 1) {
+    if (objectSegments[index] !== ownerSegments[index]) return null;
+  }
+
+  return objectSegments.join("/");
+}
+
+/**
+ * Removes an owned public asset. Returns false for external, malformed, or
+ * out-of-scope URLs so callers can safely use this for optional cleanup.
+ */
+export async function removeOwnedPublicImage(
+  publicUrl: string | null | undefined,
+  orgId: string,
+  folder = "courts",
+): Promise<boolean> {
+  const path = getOwnedPublicAssetPath(publicUrl, orgId, folder);
+  if (!path) return false;
+
+  const { error } = await createClient()
+    .storage.from(PUBLIC_ASSETS_BUCKET)
+    .remove([path]);
+
+  if (error) {
+    throw new Error(error.message || "Could not remove the stored image.");
+  }
+  return true;
+}
+
 /** Human-readable guard so callers can validate before hitting the network. */
 export function validateImageFile(file: File): string | null {
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
