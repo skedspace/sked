@@ -311,7 +311,10 @@ export function CourtsView({
   // Deleting the court currently open in the edit dialog (inline confirm).
   const [confirmDeleteCourt, setConfirmDeleteCourt] = useState(false);
   const [deletingCourt, setDeletingCourt] = useState(false);
+  const [deactivatingCourt, setDeactivatingCourt] = useState(false);
   const [courtDeleteError, setCourtDeleteError] = useState<string | null>(null);
+  const [courtDeleteBlockedByBookings, setCourtDeleteBlockedByBookings] =
+    useState(false);
   const [formState, setFormState] = useState<CourtFormState>(() =>
     initialForm(null, locations, serviceLinks),
   );
@@ -592,7 +595,9 @@ export function CourtsView({
   function resetCourtDelete() {
     setConfirmDeleteCourt(false);
     setDeletingCourt(false);
+    setDeactivatingCourt(false);
     setCourtDeleteError(null);
+    setCourtDeleteBlockedByBookings(false);
   }
 
   async function handleDeleteCourt() {
@@ -601,8 +606,13 @@ export function CourtsView({
     const storedPhotoUrl = allResources.find((court) => court.id === courtId)?.photo_url;
     setDeletingCourt(true);
     setCourtDeleteError(null);
+    setCourtDeleteBlockedByBookings(false);
     try {
-      const { error } = await db.from("resources").delete().eq("id", courtId);
+      const { error } = await db
+        .from("resources")
+        .delete()
+        .eq("id", courtId)
+        .eq("org_id", orgId);
 
       if (error) {
         // 23503 = foreign_key_violation: bookings reference resources(id) with
@@ -610,9 +620,10 @@ export function CourtsView({
         const isInUse =
           error.code === "23503" ||
           /foreign key|violates|referenced/i.test(error.message ?? "");
+        setCourtDeleteBlockedByBookings(isInUse);
         setCourtDeleteError(
           isInUse
-            ? "This court has existing bookings, so it can't be deleted. Set it to Inactive instead."
+            ? "This court has existing bookings, so it can't be deleted."
             : error.message || "Could not delete the court.",
         );
         return;
@@ -630,6 +641,59 @@ export function CourtsView({
       );
     } finally {
       setDeletingCourt(false);
+    }
+  }
+
+  async function handleDeactivateCourt() {
+    if (!formState.id || deactivatingCourt) return;
+    const courtId = formState.id;
+    setDeactivatingCourt(true);
+    setCourtDeleteError(null);
+    try {
+      const { data, error } = await db
+        .from("resources")
+        .update({ is_active: false })
+        .eq("id", courtId)
+        .eq("org_id", orgId)
+        .select("id, is_active")
+        .maybeSingle();
+
+      if (error || !data) {
+        setCourtDeleteError(
+          error?.message ?? "Could not deactivate the court. Please try again.",
+        );
+        return;
+      }
+
+      // Keep the list in sync immediately. `clientResources` is preferred over
+      // server props after the initial fetch, so router.refresh alone would not
+      // necessarily update the status shown in this client component.
+      setClientResources((current) => {
+        const source = current.length > 0 ? current : resources;
+        return source.map((court) =>
+          court.id === courtId ? { ...court, is_active: false } : court,
+        );
+      });
+      setAddedCourts((current) =>
+        current.map((court) =>
+          court.id === courtId ? { ...court, is_active: false } : court,
+        ),
+      );
+      setFormState((current) =>
+        current.id === courtId ? { ...current, isActive: false } : current,
+      );
+      setConfirmDeleteCourt(false);
+      setCourtDeleteBlockedByBookings(false);
+      setFormOpen(false);
+      router.refresh();
+    } catch (err) {
+      setCourtDeleteError(
+        err instanceof Error
+          ? err.message
+          : "Could not deactivate the court. Please try again.",
+      );
+    } finally {
+      setDeactivatingCourt(false);
     }
   }
 
@@ -1188,7 +1252,13 @@ export function CourtsView({
       </div>
 
       {/* ── Add / Edit Court Dialog ── */}
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+      <Dialog
+        open={formOpen}
+        onOpenChange={(open) => {
+          if (deletingCourt || deactivatingCourt) return;
+          setFormOpen(open);
+        }}
+      >
         <DialogContent className="max-w-2xl border-0 bg-white sm:rounded-2xl">
           <DialogHeader>
             <DialogTitle>
@@ -1609,9 +1679,33 @@ export function CourtsView({
               </p>
             )}
             {courtDeleteError && (
-              <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 sm:col-span-2">
-                {courtDeleteError}
-              </p>
+              <div
+                className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 sm:col-span-2"
+                role="alert"
+              >
+                <p>{courtDeleteError}</p>
+                {courtDeleteBlockedByBookings && (
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-red-700/80">
+                      Deactivating stops new bookings while preserving the
+                      booking history for this court.
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 border-red-200 bg-white text-[#171a16] hover:border-red-300 hover:bg-white"
+                      disabled={deactivatingCourt || deletingCourt}
+                      onClick={handleDeactivateCourt}
+                    >
+                      <Wrench className="h-4 w-4" />
+                      {deactivatingCourt
+                        ? "Deactivating…"
+                        : "Deactivate court instead"}
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
             <div className="flex flex-col gap-3 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between">
               {formState.id ? (
@@ -1627,6 +1721,7 @@ export function CourtsView({
                       onClick={() => {
                         setConfirmDeleteCourt(false);
                         setCourtDeleteError(null);
+                        setCourtDeleteBlockedByBookings(false);
                       }}
                     >
                       Cancel
@@ -1635,7 +1730,7 @@ export function CourtsView({
                       type="button"
                       size="sm"
                       className="bg-red-600 text-white hover:bg-red-700"
-                      disabled={deletingCourt}
+                      disabled={deletingCourt || deactivatingCourt}
                       onClick={handleDeleteCourt}
                     >
                       {deletingCourt ? "Deleting…" : "Delete"}
@@ -1649,6 +1744,7 @@ export function CourtsView({
                     onClick={() => {
                       setConfirmDeleteCourt(true);
                       setCourtDeleteError(null);
+                      setCourtDeleteBlockedByBookings(false);
                     }}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -1666,7 +1762,10 @@ export function CourtsView({
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving}>
+                <Button
+                  type="submit"
+                  disabled={saving || deletingCourt || deactivatingCourt}
+                >
                   {(() => {
                     if (saving) return "Saving...";
                     if (formState.id) return "Save changes";
