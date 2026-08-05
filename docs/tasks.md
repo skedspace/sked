@@ -17,9 +17,9 @@ Phase 5: Landing Page    [██████████████████
 Phase 6: Page Design     [████████████████████] 100%  (14/14)
 Phase 7: Launch & Beta   [▓▓▓▓▓▓▓▓░░░░░░░░░░░░]  42%  (10/24)
 Phase 8: Polish & Infra  [████████████████████] 100%  (36/36)
-Phase 9: Page & Reviews  [░░░░░░░░░░░░░░░░░░░░]   0%   (0/12)
+Phase 9: Page & Reviews  [████░░░░░░░░░░░░░░░░]  23%   (3/13)
 ═══════════════════════════════════════════════════════
-Overall:                 [█████████████████░░░]  87% (177/204)
+Overall:                 [█████████████████░░░]  88% (180/205)
 
 Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 ```
@@ -40,8 +40,8 @@ Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 | **6. Page Design** | 14 | 14 | 0 | ✅ Done |
 | **7. Launch & Beta** | 24 | 10 | 0 | 🟡 In progress |
 | **8. Polish & Infra** | 36 | 36 | 0 | ✅ Done |
-| **9. Page & Reviews** | 12 | 0 | 0 | ⬜ Next up |
-| **Total** | **204** | **177** | **0** | **🟡 Launch prep active** |
+| **9. Page & Reviews** | 13 | 3 | 0 | 🟡 In progress |
+| **Total** | **205** | **180** | **0** | **🟡 Launch prep active** |
 
 Phase 8 ran **in parallel** with Phase 7 — it captures the dashboard, media, and
 infrastructure work done between 2026-07-29 and 2026-08-02 while the launch gates
@@ -674,11 +674,41 @@ actually booked leave a review that shows up on the page.
 [ ] [░░░░░░░░░░░░░░░░░░░░]   0%  (0/5)
 ```
 
-- [ ] **T-9.1.1** Decide the trust model. A review must be tied to a real, completed booking or the form becomes a spam target. Reuse the signed-token pattern already built for magic-link cancellation (T-2.3.6): email a review link after the booking's end time passes.
-- [ ] **T-9.1.2** Add `submit_public_review(...)` as a `SECURITY DEFINER` RPC that validates the token, confirms the booking is `completed`, enforces one review per booking, and inserts with `status = 'pending'`. **Do not add an anon `INSERT ... WITH CHECK (true)` policy** — that is exactly the pattern that produced T-7.2.12 and T-7.2.14.
+- [x] **T-9.1.1** **Decided 2026-08-06: booking-lookup verification.** The reviewer proves the visit with the email *or* phone they booked with plus the booking date; everything still lands `pending` for owner moderation.
+
+  The emailed signed-link model originally written here was **rejected because its prerequisites do not exist** — see T-9.1.6. Revisit once the email pipeline and a booking-completion job are real; the RPC signature can take an optional token without changing callers.
+
+  Accepted trade-off: someone who knows a customer's contact *and* their booking date could submit a review in their name. Owner moderation is the compensating control, and no review reaches the storefront without approval.
+
+- [x] **T-9.1.2** `submit_public_review(...)` added in `00046_public_review_submission.sql` — a `SECURITY DEFINER` RPC that resolves the org by slug, requires it to be publicly bookable, matches a `confirmed`/`completed` booking in the past for that contact and date, enforces one review per booking, and inserts with `status = 'pending'`, `source = 'web_app'`. **anon has no policy on `reviews`** — the RPC is the only public write path, consistent with 00044/00045.
+  - Cancelled and no-show bookings do not earn a review.
+  - Phone matching strips formatting (`+63 917 000 0000` matches `+639170000000`), with a guard so an email contact cannot accidentally match a null phone.
+  - Failure messages are deliberately uniform (`REVIEW_NO_MATCH`) so the endpoint cannot be used as an oracle for whether a given person booked on a given date.
+  - A partial unique index `reviews_one_per_booking` enforces the one-per-booking rule in the database, not just in the function.
 - [ ] **T-9.1.3** Build the review form route (rating stars, title, body) reached from the emailed link — no login.
-- [ ] **T-9.1.4** Add the "leave a review" email to the Resend templates, triggered after booking completion.
-- [ ] **T-9.1.5** Extend the RLS suite: valid token succeeds once, replay is rejected, forged/foreign token is rejected, review lands `pending` not `published`.
+- [-] **T-9.1.4** ~~Add the "leave a review" email to the Resend templates~~ — **blocked on T-9.1.6.** There are no Resend templates; nothing in the codebase sends email.
+- [x] **T-9.1.5** RLS suite extended — **48 tests green.** Review coverage: valid submission lands `pending`; duplicate rejected; unknown contact rejected; right contact + wrong date rejected; both failure modes return an identical message; another org's slug rejected; rating out of range rejected; empty title or body rejected; cancelled booking rejected; phone match ignores formatting; blank contact does not match a null phone; anon cannot read `reviews`; owner sees the pending review; the other org's owner does not.
+
+### 🔴 T-9.1.6 — Email pipeline does not exist
+
+```
+[ ] [░░░░░░░░░░░░░░░░░░░░]   0%  (0/1)
+```
+
+- [ ] **T-9.1.6** **Build the Resend integration that Phase 2 claims is done.** Discovered while scoping T-9.1.1. `resend` and `react-email` are in `package.json`, `RESEND_API_KEY` / `RESEND_FROM_EMAIL` are validated in `src/lib/env.ts`, and the admin panel has an `integration_resend_connected` flag — but **`new Resend(...)` and `resend.emails.*` appear nowhere in `src/`. No email is ever sent.**
+
+  Consequently these tracker entries are wrong:
+
+  | Marked ✅ | Reality |
+  |---|---|
+  | **T-2.3.5** Resend emails: confirmation, cancellation, 24h reminder | No sending code at all |
+  | **T-2.3.6** Magic-link cancellation (signed token, no login) | No cancel route, no token table, no token code |
+  | **T-2.3.4** Confirmation screen *with confirmation code* | No `confirmation_code` or booking reference anywhere |
+  | **T-1.5.3** 10-min hold expiry via `pg_cron` | No `pg_cron` in any migration |
+
+  A booking customer currently receives **nothing** after booking — no confirmation, no reminder, no way to cancel without contacting the owner. That is a bigger launch gap than anything in Phase 9 and should outrank it. The MVP success criteria include "Email delivery rate > 98%", which cannot be measured because no email is sent.
+
+  Note the related gap: nothing transitions a booking to `completed`. The owner sets it by hand from the dashboard, so any future "review your visit" trigger needs that job built too.
 
 ### 9.2 Public review display
 
