@@ -35,8 +35,6 @@ export function TeamManagement({
   const router = useRouter();
   const supabase = createClient();
 
-  const ownerCount = members.filter((m) => m.role === "owner").length;
-
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
     setInviting(true);
