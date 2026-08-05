@@ -29,110 +29,31 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
   }
 
   try {
-    // 1. Find or create customer
-    let customerId: string | null = null;
+    // 1. Find or create customer.
+    // This runs as `anon` for public bookings, which cannot read the customers
+    // table — by design, since the anon key is public. find_or_create_customer
+    // is SECURITY DEFINER: it matches on email then phone within this org and
+    // inserts when nothing matches, returning only the id. See migration 00044.
+    const { data: resolvedCustomerId, error: customerError } = await supabase.rpc(
+      "find_or_create_customer",
+      {
+        p_org_id: orgId,
+        p_name: customerName,
+        p_email: customerEmail || null,
+        p_phone: customerPhone || null,
+      },
+    );
 
-    if (customerEmail) {
-      const { data: existing } = await supabase
-        .from("customers")
-        .select("id")
-        .eq("org_id", orgId)
-        .eq("email", customerEmail)
-        .maybeSingle();
-
-      if (existing) {
-        customerId = existing.id;
-      }
+    if (customerError || !resolvedCustomerId) {
+      return {
+        success: false,
+        error: customerError?.message ?? "Failed to create customer.",
+      };
     }
 
-    if (!customerId && customerPhone) {
-      const { data: existing } = await supabase
-        .from("customers")
-        .select("id")
-        .eq("org_id", orgId)
-        .eq("phone", customerPhone)
-        .maybeSingle();
+    const customerId: string = resolvedCustomerId;
 
-      if (existing) {
-        customerId = existing.id;
-      }
-    }
-
-    if (!customerId) {
-      const { data: newCustomer } = await supabase
-        .from("customers")
-        .insert({
-          org_id: orgId,
-          name: customerName,
-          email: customerEmail || null,
-          phone: customerPhone || null,
-        })
-        .select("id")
-        .single();
-
-      if (!newCustomer) {
-        return { success: false, error: "Failed to create customer." };
-      }
-      customerId = newCustomer.id;
-    }
-
-    // 1.5 Auto-create a player linked to this customer
-    // Customers are also players — we need player records for board view, matches, tournaments, reports.
-    const customerNameForPlayer = customerName;
-    const customerEmailForPlayer = customerEmail;
-    const customerPhoneForPlayer = customerPhone;
-
-    // Check if a player already exists linked to this customer
-    const { data: existingPlayer } = await supabase
-      .from("players")
-      .select("id")
-      .eq("customer_id", customerId)
-      .maybeSingle();
-
-    if (!existingPlayer) {
-      // Also check by email or phone (in case they were added onsite first)
-      let matchedPlayerId: string | null = null;
-      if (customerEmailForPlayer) {
-        const { data: byEmail } = await supabase
-          .from("players")
-          .select("id")
-          .eq("org_id", orgId)
-          .eq("email", customerEmailForPlayer)
-          .maybeSingle();
-        if (byEmail) matchedPlayerId = byEmail.id;
-      }
-      if (!matchedPlayerId && customerPhoneForPlayer) {
-        const { data: byPhone } = await supabase
-          .from("players")
-          .select("id")
-          .eq("org_id", orgId)
-          .eq("phone", customerPhoneForPlayer)
-          .maybeSingle();
-        if (byPhone) matchedPlayerId = byPhone.id;
-      }
-
-      if (matchedPlayerId) {
-        // Link existing player to this customer
-        await supabase
-          .from("players")
-          .update({ customer_id: customerId })
-          .eq("id", matchedPlayerId);
-      } else {
-        // Create a new player with default skill level 2.0 (beginner)
-        await supabase.from("players").insert({
-          org_id: orgId,
-          customer_id: customerId,
-          name: customerNameForPlayer,
-          email: customerEmailForPlayer || null,
-          phone: customerPhoneForPlayer || null,
-          skill_level: 2.0,
-          play_style: "All Court Player",
-          status: "active",
-        });
-      }
-    }
-
-    // 3. Check plan limits before creating booking
+    // 2. Check plan limits before creating booking
     const { data: planCheck } = await supabase.rpc("can_create_booking", {
       p_org_id: orgId,
     });
@@ -144,25 +65,33 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
       };
     }
 
-    // 4. Create the booking with idempotency key
-    const { data: booking, error } = await supabase
-      .from("bookings")
-      .insert({
-        org_id: orgId,
-        resource_id: resourceId,
-        service_id: serviceId,
-        customer_id: customerId,
-        time_range: `[${startTime},${endTime})`,
-        status: "confirmed",
-        price_cents: priceCents,
-        source: "public",
-        idempotency_key: idempotencyKey,
-      })
-      .select("id")
-      .single();
+    // 3. Create the booking.
+    // Public bookings run as `anon`, which has no privileges on bookings at all
+    // — a direct insert cannot return the new id, because PostgREST's RETURNING
+    // is gated by a SELECT policy anon must not have. create_public_booking is
+    // SECURITY DEFINER: it re-validates the target, applies the idempotency key,
+    // links the customer to a player record, and returns the id. See 00045.
+    const { data: newBookingId, error } = await supabase.rpc(
+      "create_public_booking",
+      {
+        p_org_id: orgId,
+        p_resource_id: resourceId,
+        p_service_id: serviceId,
+        p_customer_id: customerId,
+        p_start: startTime,
+        p_end: endTime,
+        p_price_cents: priceCents,
+        p_idempotency_key: idempotencyKey,
+        p_customer_name: customerName,
+        p_customer_email: customerEmail || null,
+        p_customer_phone: customerPhone || null,
+      },
+    );
 
     if (error) {
-      if (error.message?.includes("no_overlap_when_held_or_confirmed")) {
+      // The RPC raises this token when the double-booking exclusion constraint
+      // fires, so the slot-taken path stays distinguishable from real failures.
+      if (error.message?.includes("SLOT_TAKEN")) {
         const slug = formData.get("org_slug") as string;
         const date = startTime.split("T")[0];
         const { data: alternatives } = await supabase.rpc("get_available_slots", {
@@ -183,6 +112,12 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
 
       return { success: false, error: error.message };
     }
+
+    if (!newBookingId) {
+      return { success: false, error: "Failed to create the booking." };
+    }
+
+    const booking = { id: newBookingId as string };
 
     // 5. Increment usage counter and log audit
     await supabase.rpc("increment_usage", { p_org_id: orgId });
