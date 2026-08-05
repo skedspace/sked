@@ -3,12 +3,52 @@ export type FaqItem = {
   answer: string;
 };
 
+/**
+ * Storefront themes.
+ *
+ * A theme used to be four hex values, so every variation looked structurally
+ * identical and only differed in colour. These tokens add the parts that
+ * actually make two storefronts feel different — type, corner radius, section
+ * treatment and hero composition — so a venue can pick a look rather than
+ * just a palette.
+ *
+ * `colors` is retained in its original order ([primary, ink, paper, muted])
+ * because the dashboard editor renders it directly as swatches and seeds the
+ * colour picker from `colors[0]`.
+ */
+
+/** Corner rounding applied to cards, media and controls. */
+export type ThemeRadius = "sharp" | "soft" | "round";
+
+/** How section containers are separated from the page background. */
+export type ThemeSurface = "flat" | "bordered" | "elevated";
+
+/** Hero composition: booking panel beside the headline, or stacked under it. */
+export type ThemeHero = "split" | "centered";
+
 export type PublicPageTheme = {
   id: string;
   label: string;
   description: string;
   colors: string[];
+  /** Whether `paper` is a dark surface — drives border and muted-text choices. */
+  dark: boolean;
+  headingFont: string;
+  bodyFont: string;
+  radius: ThemeRadius;
+  surface: ThemeSurface;
+  hero: ThemeHero;
 };
+
+// Concrete stacks only. These are assigned to a CSS custom property, and a
+// custom property whose value contains an undefined var() computes to the
+// empty string — which silently drops the theme's font instead of falling
+// back. SANS mirrors the body stack in globals.css.
+const SANS =
+  'Inter, "Aptos", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif';
+const SERIF = 'ui-serif, Georgia, "Times New Roman", Times, serif';
+const MONO =
+  'ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace';
 
 export const PUBLIC_PAGE_THEMES: PublicPageTheme[] = [
   {
@@ -16,39 +56,157 @@ export const PUBLIC_PAGE_THEMES: PublicPageTheme[] = [
     label: "Modern Sport",
     description: "Crisp white surfaces with energetic lime actions.",
     colors: ["#72c914", "#07112b", "#f3f5ec", "#d9d9d6"],
+    dark: false,
+    headingFont: SANS,
+    bodyFont: SANS,
+    radius: "soft",
+    surface: "bordered",
+    hero: "split",
   },
   {
     id: "warm",
     label: "Sunset Club",
     description: "Warm courtside tones for lifestyle-led venues.",
     colors: ["#f59e0b", "#3d2b1f", "#fff3df", "#e0d3c2"],
+    dark: false,
+    headingFont: SERIF,
+    bodyFont: SANS,
+    radius: "round",
+    surface: "elevated",
+    hero: "split",
   },
   {
     id: "cool",
     label: "Coastal Play",
     description: "Fresh teal accents with clean booking cards.",
     colors: ["#14b8a6", "#103f4a", "#e8faf7", "#c8d7d5"],
+    dark: false,
+    headingFont: SANS,
+    bodyFont: SANS,
+    radius: "round",
+    surface: "flat",
+    hero: "centered",
   },
   {
     id: "dark",
     label: "Night Match",
     description: "High-contrast preview for evening and premium clubs.",
-    colors: ["#eab308", "#1c1917", "#34302c", "#d6d3d1"],
+    // Was ["#eab308", "#1c1917", "#34302c", "#d6d3d1"] — ink (#1c1917) sat on
+    // paper (#34302c) for a contrast ratio of 1.34:1, i.e. near-black text on
+    // dark grey. On a dark theme the ink must be the light value. Pinned by the
+    // WCAG AA check in public-page.test.ts.
+    colors: ["#eab308", "#f5f5f4", "#1c1917", "#44403c"],
+    dark: true,
+    headingFont: SANS,
+    bodyFont: SANS,
+    radius: "soft",
+    surface: "elevated",
+    hero: "split",
+  },
+  {
+    id: "editorial",
+    label: "Court Editorial",
+    description: "Serif headlines and generous space for premium clubs.",
+    colors: ["#1f6feb", "#111827", "#ffffff", "#e5e7eb"],
+    dark: false,
+    headingFont: SERIF,
+    bodyFont: SANS,
+    radius: "sharp",
+    surface: "flat",
+    hero: "centered",
+  },
+  {
+    id: "clay",
+    label: "Clay Court",
+    description: "Earthy terracotta with soft, rounded cards.",
+    colors: ["#c2410c", "#2b1b14", "#faf1e8", "#e7d3c2"],
+    dark: false,
+    headingFont: SERIF,
+    bodyFont: SANS,
+    radius: "round",
+    surface: "elevated",
+    hero: "split",
+  },
+  {
+    id: "midnight",
+    label: "Midnight League",
+    description: "Deep navy with mono accents for competitive leagues.",
+    colors: ["#38bdf8", "#e2e8f0", "#0b1220", "#1e293b"],
+    dark: true,
+    headingFont: MONO,
+    bodyFont: SANS,
+    radius: "sharp",
+    surface: "bordered",
+    hero: "split",
   },
 ];
 
-export function getPublicPageTheme(theme: string | null, primaryColor?: string | null) {
+const RADIUS_SCALE: Record<ThemeRadius, { card: string; control: string }> = {
+  sharp: { card: "0px", control: "0px" },
+  soft: { card: "0.875rem", control: "0.625rem" },
+  round: { card: "1.5rem", control: "9999px" },
+};
+
+/** Resolved tokens the storefront renders against. */
+export type ResolvedPublicPageTheme = PublicPageTheme & {
+  primary: string;
+  ink: string;
+  paper: string;
+  muted: string;
+  /** Hairline colour that works on both light and dark paper. */
+  border: string;
+  /** Slightly raised surface for cards sitting on `paper`. */
+  card: string;
+  cardRadius: string;
+  controlRadius: string;
+  /** Readable secondary text on `paper`. */
+  subtleInk: string;
+};
+
+/** `#rrggbb` -> `rgba(r, g, b, alpha)`, so tokens can express translucency. */
+function withAlpha(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const full =
+    clean.length === 3
+      ? clean
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : clean;
+  const int = Number.parseInt(full, 16);
+  if (Number.isNaN(int) || full.length !== 6) return hex;
+  const r = (int >> 16) & 255;
+  const g = (int >> 8) & 255;
+  const b = int & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+export function getPublicPageTheme(
+  theme: string | null,
+  primaryColor?: string | null,
+): ResolvedPublicPageTheme {
   const selected =
     PUBLIC_PAGE_THEMES.find((option) => option.id === theme) ??
     PUBLIC_PAGE_THEMES[0]!;
   const primary = primaryColor || selected.colors[0]!;
+  const ink = selected.colors[1]!;
+  const paper = selected.colors[2]!;
+  const muted = selected.colors[3]!;
+  const radius = RADIUS_SCALE[selected.radius];
 
   return {
     ...selected,
     primary,
-    ink: selected.colors[1]!,
-    paper: selected.colors[2]!,
-    muted: selected.colors[3]!,
+    ink,
+    paper,
+    muted,
+    // On dark paper the ink is light, so tint borders and cards from the ink
+    // side; on light paper tint from the ink to keep hairlines visible.
+    border: selected.dark ? withAlpha(ink, 0.16) : withAlpha(ink, 0.12),
+    card: selected.dark ? withAlpha(ink, 0.06) : "#ffffff",
+    subtleInk: withAlpha(ink, 0.68),
+    cardRadius: radius.card,
+    controlRadius: radius.control,
   };
 }
 
