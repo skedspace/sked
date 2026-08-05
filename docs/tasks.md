@@ -17,9 +17,9 @@ Phase 5: Landing Page    [██████████████████
 Phase 6: Page Design     [████████████████████] 100%  (14/14)
 Phase 7: Launch & Beta   [▓▓▓▓▓▓▓▓░░░░░░░░░░░░]  42%  (10/24)
 Phase 8: Polish & Infra  [████████████████████] 100%  (36/36)
-Phase 9: Page & Reviews  [████░░░░░░░░░░░░░░░░]  23%   (3/13)
+Phase 9: Page & Reviews  [███████░░░░░░░░░░░░░]  38%   (9/24)
 ═══════════════════════════════════════════════════════
-Overall:                 [█████████████████░░░]  88% (180/205)
+Overall:                 [█████████████████░░░]  86% (186/216)
 
 Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 ```
@@ -40,8 +40,8 @@ Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 | **6. Page Design** | 14 | 14 | 0 | ✅ Done |
 | **7. Launch & Beta** | 24 | 10 | 0 | 🟡 In progress |
 | **8. Polish & Infra** | 36 | 36 | 0 | ✅ Done |
-| **9. Page & Reviews** | 13 | 3 | 0 | 🟡 In progress |
-| **Total** | **205** | **180** | **0** | **🟡 Launch prep active** |
+| **9. Page & Reviews** | 24 | 9 | 1 | 🟡 In progress |
+| **Total** | **216** | **186** | **1** | **🟡 Launch prep active** |
 
 Phase 8 ran **in parallel** with Phase 7 — it captures the dashboard, media, and
 infrastructure work done between 2026-07-29 and 2026-08-02 while the launch gates
@@ -721,15 +721,53 @@ actually booked leave a review that shows up on the page.
 - [ ] **T-9.2.3** Wire it into the page section ordering system so owners can position or hide it, consistent with Phase 6 theming (`primaryColor` for stars and accents).
 - [ ] **T-9.2.4** Aggregate rating in `get_public_page` for the hero/header, so the storefront can show "4.8 ★ (23)" without a second round trip.
 
-### 9.3 Public page improvements
+### 9.3 Storefront redesign — foundation
+
+**T-9.3.1 scoped 2026-08-06:** all four tracks approved (credibility pass,
+visual restyle, new sections, mobile/performance) **plus richer theme
+variations**. Sequenced so the theme tokens land first — restyling before the
+token system exists would mean doing the work twice.
+
+```
+[~] [████████████████░░░░]  83%  (5/6)
+```
+
+- [x] **T-9.3.1** Scope agreed — see above.
+- [x] **T-9.3.4** **Theme token system.** A theme was four hex values, so every variation was structurally identical and differed only in colour. `PublicPageTheme` now also carries `headingFont`, `bodyFont`, `radius` (sharp/soft/round), `surface` (flat/bordered/elevated), `hero` (split/centered) and a `dark` flag. `getPublicPageTheme()` resolves these into render-ready tokens including derived `border`, `card`, `subtleInk`, `cardRadius` and `controlRadius`. Three new themes added (Court Editorial, Clay Court, Midnight League) for **7 total**. Storefront now publishes them as `--sked-*` CSS custom properties on `<main>`, and 7 hardcoded hairlines plus 11 hardcoded radii were swapped to tokens.
+  > **Trap found and fixed:** the first cut wrote font stacks as `var(--font-geist-sans), …`, but this app has no `next/font` and no such variable. A custom property whose value contains an undefined `var()` computes to the **empty string**, so the heading font silently vanished rather than falling back — confirmed in the browser before the fix, and now pinned by a unit test asserting no theme emits `var(` in a font stack.
+- [x] **T-9.3.5** **Doubled page title fixed.** `p/[slug]` set `title: "${name} | SKED"` while the root layout also applies a `%s | SKED` template, producing "Marco's Pickleball Courts | SKED | SKED". Verified in the browser.
+- [x] **T-9.3.6** **`hero` and `surface` tokens wired to layout.** `hero: "centered"` switches the hero from a two-column grid to a stacked, centred column with the booking panel beneath, and swaps the left-to-right scrim for a vertical one (a horizontal gradient only reads correctly against left-aligned copy). `surface` now drives the five section bands: `flat` drops the hairlines and background so bands melt into the page, `bordered` keeps the hairline, `elevated` adds a soft shadow. The bands previously hardcoded `bg-white`, which would have rendered white slabs on the two dark themes.
+- [x] **T-9.3.8** **Preview-only `?theme=` override.** Honoured only alongside `?preview=1`, so the dashboard can show a live theme preview without letting anyone restyle a live venue page from a URL. A previewed theme also ignores the saved `primary_color`, which otherwise masks the accent difference between variations. Verified all 7 themes resolve distinct primary / paper / radius / heading-font.
+- [x] **T-9.3.9** **🔴 Fixed unreadable "Night Match" theme.** Pre-existing: its palette was `["#eab308", "#1c1917", "#34302c", "#d6d3d1"]`, putting ink `#1c1917` on paper `#34302c` — **1.34:1 contrast**, near-black text on dark grey, against a 4.5:1 AA requirement. A dark theme needs the *light* value as ink. Repalletted to `["#eab308", "#f5f5f4", "#1c1917", "#44403c"]` (15.9:1). Every other theme measured 10:1–17.7:1, so this was isolated to that one theme. Now pinned by two unit tests: an AA contrast floor across all themes, and a check that `dark` is set only when the paper really is dark.
+- [ ] **T-9.3.7** Surface the expanded themes in the dashboard editor with real previews, so owners can see a variation before applying it. The `?preview=1&theme=` override from T-9.3.8 is the mechanism.
+
+### 9.4 Credibility pass
 
 ```
 [ ] [░░░░░░░░░░░░░░░░░░░░]   0%  (0/3)
 ```
 
-- [ ] **T-9.3.1** Scope the specific storefront improvements wanted — gather them before building, rather than guessing.
-- [ ] **T-9.3.2** Fold in T-7.2.5 while touching this surface: the public page has ~6 `<img>` tags that should become `next/image` (LCP, and it is the page with a Lighthouse ≥ 90 target from T-2.2.7).
-- [ ] **T-9.3.3** Re-run the Lighthouse mobile budget after the reviews section lands, so the new section does not regress T-2.2.7.
+- [ ] **T-9.4.1** Replace the default testimonials with real approved reviews. `DEFAULT_PAGE_SECTIONS.storefront.testimonials` ships three invented quotes attributed to "Player 1/2/3" and is **enabled by default**, so every unedited storefront displays fake social proof. Depends on T-9.2.1.
+- [ ] **T-9.4.2** Auto-hide sections with no real content. Gallery is enabled by default and falls back to three stock images (`/images/cta*.webp`) when the owner has uploaded none — a venue's page shows generic stock photos as if they were its own.
+- [ ] **T-9.4.3** Surface `promo` and `faq` in the editor — both are fully built and disabled by default, so owners are unlikely to discover them.
+
+### 9.5 New sections
+
+```
+[ ] [░░░░░░░░░░░░░░░░░░░░]   0%  (0/1)
+```
+
+- [ ] **T-9.5.1** Scope which of pricing/rates, coach or staff profiles, opening-hours display, map embed, and membership/package promotion to build. Each needs a section definition, editor UI, and a slot in the ordering system.
+
+### 9.6 Mobile & performance
+
+```
+[ ] [░░░░░░░░░░░░░░░░░░░░]   0%  (0/3)
+```
+
+- [ ] **T-9.6.1** Convert the 6 remaining `<img>` tags to `next/image` (also closes T-7.2.5).
+- [ ] **T-9.6.2** 375px audit — tap targets ≥ 44px, no horizontal overflow, booking panel usable one-handed.
+- [ ] **T-9.6.3** Re-run the Lighthouse mobile budget once the redesign settles, so it does not regress the ≥ 90 target from T-2.2.7.
 
 ---
 
