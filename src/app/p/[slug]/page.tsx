@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import {
   CalendarDays,
   Car,
@@ -25,7 +26,12 @@ import { getContrastText } from "@/lib/utils";
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ date?: string; service?: string; preview?: string }>;
+  searchParams: Promise<{
+    date?: string;
+    service?: string;
+    preview?: string;
+    theme?: string;
+  }>;
 };
 
 const FALLBACK_HERO = "/images/newbg.webp";
@@ -84,7 +90,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { data } = await supabase
     .rpc("get_public_page", { page_slug: slug })
     .maybeSingle();
-  if (!data) return { title: "Not found | SKED" };
+  // The root layout applies a `%s | SKED` template, so these titles must not
+  // append the suffix themselves — that produced "Venue | SKED | SKED".
+  if (!data) return { title: "Not found" };
   const sections = readPublicPageSections(data.sections, {
     brandName: data.org_name,
     bio: data.bio,
@@ -93,7 +101,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
   const displayName = sections.storefront.hero.brandName || data.org_name;
   return {
-    title: `${displayName} | SKED`,
+    title: displayName,
     description: data.bio ?? "Book your slot online",
     openGraph: {
       title: displayName,
@@ -104,7 +112,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PublicPage({ params, searchParams }: Props) {
   const { slug } = await params;
-  const { date, service, preview } = await searchParams;
+  const { date, service, preview, theme: themeParam } = await searchParams;
   const isPreview = preview === "1";
   const supabase = createClient();
   const { data: pageData } = await supabase
@@ -114,6 +122,7 @@ export default async function PublicPage({ params, searchParams }: Props) {
   if (!pageData || (!pageData.is_published && !isPreview)) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center bg-[#f7f8f4] p-8 text-center">
+        {/* Outside the themed <main>, so no --sked-* variables exist here. */}
         <span className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#071420] text-[#b9f34b] shadow-lg">
           <CalendarDays className="h-8 w-8" strokeWidth={1.8} />
         </span>
@@ -150,11 +159,45 @@ export default async function PublicPage({ params, searchParams }: Props) {
   const galleryPhotos = gallery.photos.length > 0 ? gallery.photos : FALLBACK_GALLERY;
   const displayName = hero.brandName || pageData.org_name || "Ace Pickleball";
   const publicLabel = hero.publicLabel || "Public bookings";
+  // `?theme=` is honoured only alongside `?preview=1`, so the dashboard can
+  // show a live theme preview without letting anyone restyle a venue's live
+  // page from a URL. Unknown ids fall back to the default inside the resolver.
+  const previewTheme = isPreview && themeParam ? themeParam : null;
   const pageTheme = getPublicPageTheme(
-    pageData.theme ?? "default",
-    pageData.primary_color,
+    previewTheme || pageData.theme || "default",
+    // When previewing a specific theme, show that theme's own accent — the
+    // saved primary_color belongs to whichever theme is currently applied and
+    // would otherwise mask the difference between variations.
+    previewTheme ? null : pageData.primary_color,
   );
   const primaryTextColor = getContrastText(pageTheme.primary);
+
+  // ── Theme-driven layout ──
+  // `hero` decides whether the booking panel sits beside the headline or under
+  // it; `surface` decides how section bands separate from the page background.
+  const heroCentered = pageTheme.hero === "centered";
+  const heroGridClass = heroCentered
+    ? "mx-auto flex max-w-4xl flex-col items-center gap-12 px-5 pb-14 pt-8 text-center sm:px-8 lg:py-16"
+    : "mx-auto grid max-w-7xl gap-10 px-5 pb-10 pt-8 sm:px-8 lg:min-h-[720px] lg:grid-cols-[minmax(0,1fr)_560px] lg:items-center lg:py-12";
+  const heroCopyClass = heroCentered
+    ? "flex w-full flex-col items-center"
+    : "max-w-2xl";
+  // A left-to-right scrim only reads correctly when the copy is left-aligned.
+  const heroScrimClass = heroCentered
+    ? "absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(2,10,17,0.86),rgba(2,10,17,0.62)_45%,rgba(2,10,17,0.9))]"
+    : "absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(2,10,17,0.94),rgba(2,10,17,0.72)_45%,rgba(2,10,17,0.46))]";
+
+  const bandStyle: CSSProperties =
+    pageTheme.surface === "flat"
+      ? { backgroundColor: "transparent" }
+      : pageTheme.surface === "elevated"
+        ? {
+            backgroundColor: pageTheme.card,
+            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.06)",
+          }
+        : { backgroundColor: pageTheme.card };
+  // Flat themes drop the hairlines entirely so bands melt into the page.
+  const bandBorder = pageTheme.surface === "flat" ? "border-transparent" : "border-[var(--sked-border)]";
   const bookingCopy = {
     serviceTitle: sections.booking.service.enabled
       ? sections.booking.service.title
@@ -216,7 +259,26 @@ export default async function PublicPage({ params, searchParams }: Props) {
   return (
     <main
       className="min-h-screen"
-      style={{ backgroundColor: pageTheme.paper, color: pageTheme.ink }}
+      style={
+        {
+          backgroundColor: pageTheme.paper,
+          color: pageTheme.ink,
+          fontFamily: pageTheme.bodyFont,
+          // Consumed by the section styles below and by nested client
+          // components, so a theme change restyles the whole storefront
+          // without threading props through every child.
+          "--sked-primary": pageTheme.primary,
+          "--sked-ink": pageTheme.ink,
+          "--sked-paper": pageTheme.paper,
+          "--sked-muted": pageTheme.muted,
+          "--sked-border": pageTheme.border,
+          "--sked-card": pageTheme.card,
+          "--sked-subtle-ink": pageTheme.subtleInk,
+          "--sked-card-radius": pageTheme.cardRadius,
+          "--sked-control-radius": pageTheme.controlRadius,
+          "--sked-heading-font": pageTheme.headingFont,
+        } as CSSProperties
+      }
     >
       <section
         className="relative isolate overflow-hidden text-white"
@@ -229,10 +291,14 @@ export default async function PublicPage({ params, searchParams }: Props) {
             className="absolute inset-0 -z-20 h-full w-full object-cover"
           />
         )}
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(2,10,17,0.94),rgba(2,10,17,0.72)_45%,rgba(2,10,17,0.46))]" />
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 pb-10 pt-8 sm:px-8 lg:min-h-[720px] lg:grid-cols-[minmax(0,1fr)_560px] lg:items-center lg:py-12">
-          <div className="max-w-2xl">
-            <div className="mb-20 flex items-center gap-3 lg:mb-28">
+        <div className={heroScrimClass} />
+        <div className={heroGridClass}>
+          <div className={heroCopyClass}>
+            <div
+              className={`flex items-center gap-3 ${
+                heroCentered ? "mb-10 justify-center" : "mb-20 lg:mb-28"
+              }`}
+            >
               {logoUrl ? (
                 <img
                   src={logoUrl}
@@ -265,7 +331,10 @@ export default async function PublicPage({ params, searchParams }: Props) {
 
             {hero.enabled && (
               <>
-                <h1 className="max-w-2xl text-5xl font-black uppercase leading-[0.95] tracking-normal sm:text-7xl">
+                <h1
+                  className="max-w-2xl text-5xl font-black uppercase leading-[0.95] tracking-normal sm:text-7xl"
+                  style={{ fontFamily: "var(--sked-heading-font)" }}
+                >
                   {headline.lead}
                   {headline.accent && (
                     <span className="block" style={{ color: pageTheme.primary }}>{headline.accent}</span>
@@ -277,7 +346,11 @@ export default async function PublicPage({ params, searchParams }: Props) {
               </>
             )}
 
-            <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <div
+              className={`mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 ${
+                heroCentered ? "w-full max-w-xl" : ""
+              }`}
+            >
               {HERO_FEATURES.map(({ label, Icon }) => (
                 <div key={label} className="min-w-0">
                   <Icon className="mb-4 h-9 w-9" strokeWidth={1.6} style={{ color: pageTheme.primary }} />
@@ -289,7 +362,11 @@ export default async function PublicPage({ params, searchParams }: Props) {
 
           <aside
             id="booking"
-            className="w-full max-w-[560px] justify-self-center lg:justify-self-end"
+            className={
+              heroCentered
+                ? "w-full max-w-[560px] text-left"
+                : "w-full max-w-[560px] justify-self-center lg:justify-self-end"
+            }
           >
             <PublicPageContent
               slug={slug}
@@ -310,17 +387,17 @@ export default async function PublicPage({ params, searchParams }: Props) {
       </section>
 
       {amenities.enabled && amenities.items.length > 0 && (
-        <section className="border-b border-[#e7e9e2] bg-white">
+        <section className={`border-b ${bandBorder}`} style={bandStyle}>
           <div className="mx-auto grid max-w-7xl gap-0 px-5 py-14 sm:grid-cols-2 sm:px-8 lg:grid-cols-4">
             {amenities.items.slice(0, 4).map((item, index) => {
               const Icon = amenityIcons[index % amenityIcons.length]!;
               return (
                 <div
                   key={`${item}-${index}`}
-                  className="border-[#e7e9e2] py-6 text-center sm:px-8 lg:border-r lg:last:border-r-0"
+                  className="border-[var(--sked-border)] py-6 text-center sm:px-8 lg:border-r lg:last:border-r-0"
                 >
                   <Icon className="mx-auto mb-5 h-10 w-10" strokeWidth={1.55} style={{ color: pageTheme.primary }} />
-                  <h2 className="text-sm font-black uppercase">{item}</h2>
+                  <h2 style={{ fontFamily: "var(--sked-heading-font)" }} className="text-sm font-black uppercase">{item}</h2>
                   <p className="mx-auto mt-3 max-w-44 text-sm leading-6 text-[#5f695c]">
                     {index === 0
                       ? "Consistent bounce built for performance."
@@ -338,11 +415,11 @@ export default async function PublicPage({ params, searchParams }: Props) {
       )}
 
       {about.enabled && (
-        <section className="border-b border-[#e7e9e2] bg-white">
+        <section className={`border-b ${bandBorder}`} style={bandStyle}>
           <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8">
             <div className="mx-auto max-w-3xl text-center">
               <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: pageTheme.primary }}>About</p>
-              <h2 className="mt-4 text-4xl font-black leading-tight tracking-normal">
+              <h2 style={{ fontFamily: "var(--sked-heading-font)" }} className="mt-4 text-4xl font-black leading-tight tracking-normal">
                 {about.title}
               </h2>
               <p className="mt-5 text-lg leading-8 text-[#5f695c]">
@@ -359,7 +436,7 @@ export default async function PublicPage({ params, searchParams }: Props) {
             <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: pageTheme.primary }}>
               Courts
             </p>
-            <h2 className="mt-5 text-4xl font-black leading-tight tracking-normal">
+            <h2 style={{ fontFamily: "var(--sked-heading-font)" }} className="mt-5 text-4xl font-black leading-tight tracking-normal">
               {courts.title}
             </h2>
             <p className="mt-5 text-base leading-7 text-[#5f695c]">
@@ -367,7 +444,7 @@ export default async function PublicPage({ params, searchParams }: Props) {
             </p>
             <a
               href="#booking"
-              className="mt-8 inline-flex min-h-12 items-center gap-3 rounded-xl bg-[#071420] px-6 text-sm font-black uppercase text-white shadow-[0_12px_24px_rgba(7,20,32,0.18)] transition-colors hover:bg-[#14293a]"
+              className="mt-8 inline-flex min-h-12 items-center gap-3 rounded-[var(--sked-control-radius)] bg-[#071420] px-6 text-sm font-black uppercase text-white shadow-[0_12px_24px_rgba(7,20,32,0.18)] transition-colors hover:bg-[#14293a]"
               style={{ backgroundColor: pageTheme.ink, color: "#ffffff" }}
             >
               {hero.secondaryCta || "View courts"}
@@ -384,7 +461,7 @@ export default async function PublicPage({ params, searchParams }: Props) {
             {galleryPhotos.slice(0, 3).map((photo, index) => (
               <article
                 key={`${photo}-${index}`}
-                className="group relative min-h-80 overflow-hidden rounded-xl bg-[#071420] shadow-[0_18px_36px_rgba(7,20,32,0.16)]"
+                className="group relative min-h-80 overflow-hidden rounded-[var(--sked-control-radius)] bg-[#071420] shadow-[0_18px_36px_rgba(7,20,32,0.16)]"
                 style={{ backgroundColor: pageTheme.ink }}
               >
                 <img
@@ -398,7 +475,7 @@ export default async function PublicPage({ params, searchParams }: Props) {
                     Court {index + 1}
                   </p>
                   <div className="mt-1 flex items-center justify-between gap-3">
-                    <h3 className="text-lg font-black uppercase">
+                    <h3 style={{ fontFamily: "var(--sked-heading-font)" }} className="text-lg font-black uppercase">
                       Court {index + 1}
                     </h3>
                     <span className="inline-flex items-center gap-1.5 text-xs font-medium">
@@ -416,14 +493,14 @@ export default async function PublicPage({ params, searchParams }: Props) {
       {promo.enabled && (
         <section className="mx-auto max-w-7xl px-5 pb-16 sm:px-8">
           <div
-            className="grid items-center gap-6 overflow-hidden rounded-2xl p-6 text-white md:grid-cols-[1fr_auto] md:p-8"
+            className="grid items-center gap-6 overflow-hidden rounded-[var(--sked-card-radius)] p-6 text-white md:grid-cols-[1fr_auto] md:p-8"
             style={{ backgroundColor: pageTheme.ink }}
           >
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: pageTheme.primary }}>
                 {promo.eyebrow}
               </p>
-              <h2 className="mt-3 max-w-3xl text-3xl font-black uppercase leading-tight tracking-normal">
+              <h2 style={{ fontFamily: "var(--sked-heading-font)" }} className="mt-3 max-w-3xl text-3xl font-black uppercase leading-tight tracking-normal">
                 {promo.title}
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/72">
@@ -432,7 +509,7 @@ export default async function PublicPage({ params, searchParams }: Props) {
             </div>
             <a
               href="#booking"
-              className="inline-flex min-h-12 items-center justify-center gap-3 rounded-xl bg-[#b9f34b] px-8 text-sm font-black uppercase text-[#071420] transition-colors hover:bg-[#a8ea2d]"
+              className="inline-flex min-h-12 items-center justify-center gap-3 rounded-[var(--sked-control-radius)] bg-[#b9f34b] px-8 text-sm font-black uppercase text-[#071420] transition-colors hover:bg-[#a8ea2d]"
               style={{ backgroundColor: pageTheme.primary, color: primaryTextColor }}
             >
               {promo.ctaLabel}
@@ -444,14 +521,14 @@ export default async function PublicPage({ params, searchParams }: Props) {
 
       <section className="mx-auto max-w-7xl px-5 pb-16 sm:px-8">
         <div
-          className="grid overflow-hidden rounded-2xl text-white lg:grid-cols-[1fr_340px]"
+          className="grid overflow-hidden rounded-[var(--sked-card-radius)] text-white lg:grid-cols-[1fr_340px]"
           style={{ backgroundColor: pageTheme.ink }}
         >
           <div className="p-8 md:p-12">
             <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: pageTheme.primary }}>
               Book in
             </p>
-            <h2 className="mt-2 text-4xl font-black uppercase tracking-normal">
+            <h2 style={{ fontFamily: "var(--sked-heading-font)" }} className="mt-2 text-4xl font-black uppercase tracking-normal">
               3 simple steps
             </h2>
             <div className="mt-10 grid gap-8 md:grid-cols-3">
@@ -493,11 +570,11 @@ export default async function PublicPage({ params, searchParams }: Props) {
       </section>
 
       {gallery.enabled && (
-        <section className="border-b border-[#e7e9e2] bg-white">
+        <section className={`border-b ${bandBorder}`} style={bandStyle}>
           <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8">
             <div className="text-center">
               <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: pageTheme.primary }}>Gallery</p>
-              <h2 className="mt-4 text-4xl font-black leading-tight tracking-normal">
+              <h2 style={{ fontFamily: "var(--sked-heading-font)" }} className="mt-4 text-4xl font-black leading-tight tracking-normal">
                 {gallery.title}
               </h2>
             </div>
@@ -505,7 +582,7 @@ export default async function PublicPage({ params, searchParams }: Props) {
               {galleryPhotos.slice(0, 6).map((photo, index) => (
                 <div
                   key={`${photo}-${index}`}
-                  className="group relative min-h-64 overflow-hidden rounded-xl"
+                  className="group relative min-h-64 overflow-hidden rounded-[var(--sked-control-radius)]"
                   style={{ backgroundColor: pageTheme.ink }}
                 >
                   <img
@@ -525,14 +602,14 @@ export default async function PublicPage({ params, searchParams }: Props) {
           <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: pageTheme.primary }}>
             What players are saying
           </p>
-          <h2 className="mt-3 text-3xl font-black tracking-normal">
+          <h2 style={{ fontFamily: "var(--sked-heading-font)" }} className="mt-3 text-3xl font-black tracking-normal">
             {testimonials.title}
           </h2>
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {testimonials.quotes.slice(0, 3).map((quote, index) => (
               <article
                 key={`${quote}-${index}`}
-                className="rounded-xl bg-white p-8 text-left shadow-[0_14px_40px_rgba(7,20,32,0.08)]"
+                className="rounded-[var(--sked-control-radius)] bg-white p-8 text-left shadow-[0_14px_40px_rgba(7,20,32,0.08)]"
               >
                 <div className="mb-5 flex gap-1" style={{ color: pageTheme.primary }}>
                   {Array.from({ length: 5 }).map((_, starIndex) => (
@@ -550,13 +627,13 @@ export default async function PublicPage({ params, searchParams }: Props) {
       )}
 
       {faq.enabled && faq.items.length > 0 && (
-        <section className="border-y border-[#e7e9e2] bg-white">
+        <section className={`border-y ${bandBorder}`} style={bandStyle}>
           <div className="mx-auto max-w-5xl px-5 py-16 sm:px-8">
             <div className="text-center">
               <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: pageTheme.primary }}>
                 FAQ
               </p>
-              <h2 className="mt-4 text-4xl font-black leading-tight tracking-normal">
+              <h2 style={{ fontFamily: "var(--sked-heading-font)" }} className="mt-4 text-4xl font-black leading-tight tracking-normal">
                 {faq.title}
               </h2>
             </div>
@@ -566,7 +643,7 @@ export default async function PublicPage({ params, searchParams }: Props) {
                   key={`${item.question}-${index}`}
                   className="grid gap-3 py-6 md:grid-cols-[280px_minmax(0,1fr)]"
                 >
-                  <h3 className="text-base font-black text-[#071420]">
+                  <h3 style={{ fontFamily: "var(--sked-heading-font)" }} className="text-base font-black text-[#071420]">
                     {item.question}
                   </h3>
                   <p className="text-base leading-7 text-[#5f695c]">
@@ -581,23 +658,23 @@ export default async function PublicPage({ params, searchParams }: Props) {
 
       <section className="mx-auto max-w-7xl px-5 pb-10 sm:px-8">
         <div
-          className="grid items-center gap-6 overflow-hidden rounded-2xl p-6 text-white md:grid-cols-[220px_1fr_auto] md:p-8"
+          className="grid items-center gap-6 overflow-hidden rounded-[var(--sked-card-radius)] p-6 text-white md:grid-cols-[220px_1fr_auto] md:p-8"
           style={{ backgroundColor: pageTheme.ink }}
         >
           <img
             src="/images/newbg.webp"
             alt=""
-            className="h-32 w-full rounded-xl object-cover md:h-24"
+            className="h-32 w-full rounded-[var(--sked-control-radius)] object-cover md:h-24"
           />
           <div>
-            <h2 className="text-2xl font-black uppercase">Ready to play?</h2>
+            <h2 style={{ fontFamily: "var(--sked-heading-font)" }} className="text-2xl font-black uppercase">Ready to play?</h2>
             <p className="mt-2 text-sm leading-6 text-white/72">
               Book your court now and get out on the court.
             </p>
           </div>
           <a
             href="#booking"
-            className="inline-flex min-h-12 items-center justify-center gap-3 rounded-xl bg-[#b9f34b] px-8 text-sm font-black uppercase text-[#071420] transition-colors hover:bg-[#a8ea2d]"
+            className="inline-flex min-h-12 items-center justify-center gap-3 rounded-[var(--sked-control-radius)] bg-[#b9f34b] px-8 text-sm font-black uppercase text-[#071420] transition-colors hover:bg-[#a8ea2d]"
             style={{ backgroundColor: pageTheme.primary, color: primaryTextColor }}
           >
             {hero.primaryCta || "Book your court"}
@@ -607,7 +684,7 @@ export default async function PublicPage({ params, searchParams }: Props) {
       </section>
 
       {(contact.enabled || socialLinks.length > 0 || pageData.plan === "trial") && (
-        <footer className="border-t border-[#e7e9e2] bg-white">
+        <footer className={`border-t ${bandBorder}`} style={bandStyle}>
           <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-8 text-sm text-[#5f695c] sm:px-8 md:flex-row md:items-center md:justify-between">
             <div className="space-y-2">
               <p className="font-black" style={{ color: pageTheme.ink }}>{displayName}</p>

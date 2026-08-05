@@ -212,7 +212,12 @@ export function PublicPageContent({
             <CalendarDays className="h-7 w-7" strokeWidth={1.7} />
           </span>
           <div>
-            <h2 className="text-2xl font-black capitalize tracking-normal" style={{ color: inkColor }}>
+            <h2
+              className="text-2xl font-black capitalize tracking-normal"
+              // --sked-heading-font is published on the storefront <main>, so
+              // the booking panel picks up the theme's type without a prop.
+              style={{ color: inkColor, fontFamily: "var(--sked-heading-font)" }}
+            >
               {bookingCopy?.serviceTitle ?? "Book Your Court"}
             </h2>
             {bookingCopy?.serviceHelper && (
