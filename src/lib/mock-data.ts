@@ -8,8 +8,6 @@
  * page navigations and refreshes within the same browser tab.
  */
 
-type Ctor<T> = { new (...args: any[]): T } | (() => T);
-
 const STORAGE_KEY = "sked_mock_data_v3";
 
 // ── Helpers ──

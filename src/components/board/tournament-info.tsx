@@ -3,7 +3,6 @@
 import { format } from "date-fns";
 import {
   CalendarDays,
-  Clock,
   Swords,
   Trophy,
   Users,

@@ -754,7 +754,6 @@ export function SessionControl({ orgId }: { orgId: string }) {
         // Count how many courts were active during this bucket by checking if their elapsed overlaps
         const activeInBucket = state.courts.filter((c) => {
           if (!c.startedAt) return false;
-          const courtStart = Math.max(0, 0); // relative to session start
           const courtElapsed = c.elapsedSeconds;
           return courtElapsed > bucketStart && courtElapsed < bucketEnd;
         }).length;
@@ -1677,7 +1676,6 @@ function CourtControlPanel({
   const progress = getProgressPercent(elapsed, targetMinutes);
   const isOverTime = isActive && targetMinutes > 0 && elapsed > targetMinutes * 60;
   const [showDurationPicker, setShowDurationPicker] = useState(false);
-  const [customMinutes, setCustomMinutes] = useState(String(targetMinutes));
 
   return (
     <div

@@ -1,4 +1,3 @@
-import type { Database } from "@/lib/database.types";
 import { isDevAuthEnabled } from "@/lib/dev-auth";
 
 // Only import the real client in production to avoid bundling Supabase in dev

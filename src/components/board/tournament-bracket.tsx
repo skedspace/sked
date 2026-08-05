@@ -75,7 +75,6 @@ function TeamSlot({
 
 function MatchCard({
   match,
-  roundIndex,
   totalRounds,
 }: {
   match: BracketMatch;
