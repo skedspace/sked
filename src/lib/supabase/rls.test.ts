@@ -594,6 +594,194 @@ describe("RLS: create_public_booking (migration 00045)", () => {
   });
 });
 
+describe("RLS: Public Review Submission (migration 00046)", () => {
+  // A review needs a finished booking, so seed one in the past.
+  let pastBookingId: string;
+  let pastDate: string;
+  const createdReviewIds: string[] = [];
+
+  beforeAll(async () => {
+    const start = new Date(Date.now() - 3 * 86_400_000);
+    start.setUTCMinutes(0, 0, 0);
+    const end = new Date(start.getTime() + 3_600_000);
+    pastDate = start.toISOString().slice(0, 10);
+
+    pastBookingId = await seedRow("bookings", {
+      org_id: orgA.id,
+      resource_id: orgA.resourceId,
+      service_id: orgA.serviceId,
+      customer_id: orgA.customerId,
+      time_range: `[${start.toISOString()},${end.toISOString()})`,
+      status: "completed",
+      price_cents: 35000,
+      source: "public",
+      idempotency_key: `${RUN}-past`,
+    });
+  });
+
+  afterAll(async () => {
+    for (const id of createdReviewIds) {
+      await admin.from("reviews").delete().eq("id", id);
+    }
+    await admin.from("reviews").delete().eq("booking_id", pastBookingId);
+    await admin.from("bookings").delete().eq("id", pastBookingId);
+  });
+
+  function submit(overrides: Record<string, unknown> = {}) {
+    return anonClient().rpc("submit_public_review", {
+      p_org_slug: orgA.slug,
+      p_contact: `${orgA.slug}-customer@example.test`,
+      p_booking_date: pastDate,
+      p_rating: 5,
+      p_title: "Great courts",
+      p_body: "Clean nets and easy booking.",
+      ...overrides,
+    });
+  }
+
+  it("accepts a review from someone who actually booked", async () => {
+    const { data, error } = await submit();
+    expect(error).toBeNull();
+    expect(typeof data).toBe("string");
+    createdReviewIds.push(data as string);
+
+    const { data: row } = await admin
+      .from("reviews")
+      .select("org_id, booking_id, status, rating, source")
+      .eq("id", data as string)
+      .single();
+    expect(row?.org_id).toBe(orgA.id);
+    expect(row?.booking_id).toBe(pastBookingId);
+    expect(row?.rating).toBe(5);
+    // Never auto-published — the owner moderates.
+    expect(row?.status).toBe("pending");
+  });
+
+  it("rejects a second review for the same booking", async () => {
+    const { error } = await submit({ p_title: "Again", p_body: "Second try." });
+    expect(error).not.toBeNull();
+    expect(error?.message).toContain("REVIEW_ALREADY_SUBMITTED");
+  });
+
+  it("rejects a contact that never booked", async () => {
+    const { error } = await submit({ p_contact: `${RUN}-stranger@example.test` });
+    expect(error).not.toBeNull();
+    expect(error?.message).toContain("REVIEW_NO_MATCH");
+  });
+
+  it("rejects the right contact on the wrong date", async () => {
+    const { error } = await submit({ p_booking_date: "2020-01-01" });
+    expect(error).not.toBeNull();
+    expect(error?.message).toContain("REVIEW_NO_MATCH");
+  });
+
+  it("does not leak which half of the lookup failed", async () => {
+    const wrongContact = await submit({ p_contact: `${RUN}-nobody@example.test` });
+    const wrongDate = await submit({ p_booking_date: "2019-05-05" });
+    expect(wrongContact.error?.message).toBe(wrongDate.error?.message);
+  });
+
+  it("rejects a review aimed at another org's slug", async () => {
+    const { error } = await submit({ p_org_slug: orgB.slug });
+    expect(error).not.toBeNull();
+    expect(error?.message).toContain("REVIEW_NO_MATCH");
+  });
+
+  it("rejects an out-of-range rating", async () => {
+    const { error } = await submit({ p_rating: 6 });
+    expect(error).not.toBeNull();
+  });
+
+  it("rejects an empty title or body", async () => {
+    const noTitle = await submit({ p_title: "   " });
+    expect(noTitle.error).not.toBeNull();
+    const noBody = await submit({ p_body: "" });
+    expect(noBody.error).not.toBeNull();
+  });
+
+  it("will not accept a review for a cancelled booking", async () => {
+    const start = new Date(Date.now() - 4 * 86_400_000);
+    start.setUTCMinutes(0, 0, 0);
+    const end = new Date(start.getTime() + 3_600_000);
+    const cancelledId = await seedRow("bookings", {
+      org_id: orgA.id,
+      resource_id: orgA.resourceId,
+      service_id: orgA.serviceId,
+      customer_id: orgA.customerId,
+      time_range: `[${start.toISOString()},${end.toISOString()})`,
+      status: "cancelled",
+      price_cents: 35000,
+      source: "public",
+      idempotency_key: `${RUN}-cancelled`,
+    });
+
+    const { error } = await submit({
+      p_booking_date: start.toISOString().slice(0, 10),
+    });
+    expect(error).not.toBeNull();
+    expect(error?.message).toContain("REVIEW_NO_MATCH");
+
+    await admin.from("bookings").delete().eq("id", cancelledId);
+  });
+
+  it("matches on phone too, ignoring formatting", async () => {
+    // Fixture phone is +639170000000; submit it punctuated differently.
+    const start = new Date(Date.now() - 5 * 86_400_000);
+    start.setUTCMinutes(0, 0, 0);
+    const end = new Date(start.getTime() + 3_600_000);
+    const bookingId = await seedRow("bookings", {
+      org_id: orgA.id,
+      resource_id: orgA.resourceId,
+      service_id: orgA.serviceId,
+      customer_id: orgA.customerId,
+      time_range: `[${start.toISOString()},${end.toISOString()})`,
+      status: "confirmed",
+      price_cents: 35000,
+      source: "public",
+      idempotency_key: `${RUN}-phone`,
+    });
+
+    const { data, error } = await submit({
+      p_contact: "+63 917 000 0000",
+      p_booking_date: start.toISOString().slice(0, 10),
+      p_title: "Booked by phone",
+      p_body: "Found the slot easily.",
+    });
+    expect(error).toBeNull();
+    createdReviewIds.push(data as string);
+
+    await admin.from("reviews").delete().eq("booking_id", bookingId);
+    await admin.from("bookings").delete().eq("id", bookingId);
+  });
+
+  it("does not treat an empty contact as a phone match", async () => {
+    const { error } = await submit({ p_contact: "   " });
+    expect(error).not.toBeNull();
+  });
+
+  it("keeps reviews unreadable by anonymous callers", async () => {
+    const { data } = await anonClient().from("reviews").select("id, title, body");
+    expect(data ?? []).toHaveLength(0);
+  });
+
+  it("lets the owner see the pending review for moderation", async () => {
+    const { data, error } = await ownerA
+      .from("reviews")
+      .select("id, status")
+      .eq("booking_id", pastBookingId);
+    expect(error).toBeNull();
+    expect((data ?? []).length).toBeGreaterThan(0);
+  });
+
+  it("does not expose the review to another org's owner", async () => {
+    const { data } = await ownerB
+      .from("reviews")
+      .select("id")
+      .eq("booking_id", pastBookingId);
+    expect(data ?? []).toHaveLength(0);
+  });
+});
+
 describe("RLS: Anonymous Direct Table Access", () => {
   it("blocks anonymous reads of organizations", async () => {
     const { data } = await anonClient().from("organizations").select("id");
