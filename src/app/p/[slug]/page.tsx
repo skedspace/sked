@@ -14,7 +14,6 @@ import {
   Moon,
   ShieldCheck,
   Sparkles,
-  Star,
   Trophy,
   UsersRound,
 } from "lucide-react";
@@ -35,11 +34,6 @@ type Props = {
 };
 
 const FALLBACK_HERO = "/images/newbg.webp";
-const FALLBACK_GALLERY = [
-  "/images/cta.webp",
-  "/images/cta2.webp",
-  "/images/cta3.webp",
-];
 
 const HERO_FEATURES: Array<{ label: string; Icon: LucideIcon }> = [
   { label: "Easy booking", Icon: CalendarDays },
@@ -156,7 +150,9 @@ export default async function PublicPage({ params, searchParams }: Props) {
   const coverUrl = hero.coverUrl || pageData.cover_url || FALLBACK_HERO;
   const logoUrl = hero.logoUrl || pageData.logo_url;
   const headline = splitHeadline(hero.headline);
-  const galleryPhotos = gallery.photos.length > 0 ? gallery.photos : FALLBACK_GALLERY;
+  // No stock fallback: these render as the venue's own courts, so borrowed
+  // images read as a claim. Both consumers hide themselves when it is empty.
+  const galleryPhotos = gallery.photos;
   const displayName = hero.brandName || pageData.org_name || "Ace Pickleball";
   const publicLabel = hero.publicLabel || "Public bookings";
   // `?theme=` is honoured only alongside `?preview=1`, so the dashboard can
@@ -242,11 +238,14 @@ export default async function PublicPage({ params, searchParams }: Props) {
     { href: socials.website, label: "Website", Icon: Globe2 },
   ].filter((item) => item.href);
   const amenityIcons = [Trophy, Moon, Car, Sparkles];
+  // Each entry carries its own icon. Pairing by array index broke as soon as
+  // an earlier field was blank — an empty address handed the map pin to the
+  // opening hours.
   const contactItems = [
-    [contact.address, contact.city].filter(Boolean).join(", "),
-    contact.hours,
-    [contact.phone, contact.email].filter(Boolean).join(" / "),
-  ].filter(Boolean);
+    { text: [contact.address, contact.city].filter(Boolean).join(", "), Icon: MapPin },
+    { text: contact.hours, Icon: Clock3 },
+    { text: [contact.phone, contact.email].filter(Boolean).join(" / "), Icon: Mail },
+  ].filter((item) => item.text);
   const { data: orgSettings } = await supabase
     .from("org_settings")
     .select("payment_methods")
@@ -396,17 +395,15 @@ export default async function PublicPage({ params, searchParams }: Props) {
                   key={`${item}-${index}`}
                   className="border-[var(--sked-border)] py-6 text-center sm:px-8 lg:border-r lg:last:border-r-0"
                 >
+                  {/*
+                    The blurb here used to be chosen by array position, so an
+                    owner who typed their own amenities got someone else's
+                    description under it — "Pro shop" captioned "Easy and
+                    convenient on-site parking." The label is the only text the
+                    owner actually authored, so it is the only text shown.
+                  */}
                   <Icon className="mx-auto mb-5 h-10 w-10" strokeWidth={1.55} style={{ color: pageTheme.primary }} />
                   <h2 style={{ fontFamily: "var(--sked-heading-font)" }} className="text-sm font-black uppercase">{item}</h2>
-                  <p className="mx-auto mt-3 max-w-44 text-sm leading-6 text-[#5f695c]">
-                    {index === 0
-                      ? "Consistent bounce built for performance."
-                      : index === 1
-                        ? "Bright lights for more play, any time."
-                        : index === 2
-                          ? "Easy and convenient on-site parking."
-                          : "Water, restrooms, and player comforts."}
-                  </p>
                 </div>
               );
             })}
@@ -431,7 +428,11 @@ export default async function PublicPage({ params, searchParams }: Props) {
       )}
 
       {courts.enabled && (
-        <section className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-center">
+        <section
+          className={`mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 lg:items-center ${
+            galleryPhotos.length > 0 ? "lg:grid-cols-[280px_minmax(0,1fr)]" : ""
+          }`}
+        >
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: pageTheme.primary }}>
               Courts
@@ -457,36 +458,31 @@ export default async function PublicPage({ params, searchParams }: Props) {
             </a>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            {galleryPhotos.slice(0, 3).map((photo, index) => (
-              <article
-                key={`${photo}-${index}`}
-                className="group relative min-h-80 overflow-hidden rounded-[var(--sked-control-radius)] bg-[#071420] shadow-[0_18px_36px_rgba(7,20,32,0.16)]"
-                style={{ backgroundColor: pageTheme.ink }}
-              >
-                <img
-                  src={photo}
-                  alt=""
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#03101b] via-[#03101b]/20 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-5 text-white">
-                  <p className="text-xs font-semibold uppercase text-white/70">
-                    Court {index + 1}
-                  </p>
-                  <div className="mt-1 flex items-center justify-between gap-3">
-                    <h3 style={{ fontFamily: "var(--sked-heading-font)" }} className="text-lg font-black uppercase">
-                      Court {index + 1}
-                    </h3>
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium">
-                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: pageTheme.primary }} />
-                      Available
-                    </span>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
+          {/*
+            These are the owner's gallery photos, not resource records. They
+            previously carried a "Court N" byline and a hardcoded "Available"
+            badge, which named arbitrary photos as specific courts and claimed
+            a booking status nothing had checked. Showing the photos plainly is
+            the honest version until resources are exposed publicly.
+          */}
+          {galleryPhotos.length > 0 && (
+            <div className="grid gap-4 sm:grid-cols-3">
+              {galleryPhotos.slice(0, 3).map((photo, index) => (
+                <article
+                  key={`${photo}-${index}`}
+                  className="group relative min-h-80 overflow-hidden rounded-[var(--sked-control-radius)] bg-[#071420] shadow-[0_18px_36px_rgba(7,20,32,0.16)]"
+                  style={{ backgroundColor: pageTheme.ink }}
+                >
+                  <img
+                    src={photo}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#03101b] via-[#03101b]/20 to-transparent" />
+                </article>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -569,7 +565,7 @@ export default async function PublicPage({ params, searchParams }: Props) {
         </div>
       </section>
 
-      {gallery.enabled && (
+      {gallery.enabled && galleryPhotos.length > 0 && (
         <section className={`border-b ${bandBorder}`} style={bandStyle}>
           <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8">
             <div className="text-center">
@@ -607,19 +603,17 @@ export default async function PublicPage({ params, searchParams }: Props) {
           </h2>
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {testimonials.quotes.slice(0, 3).map((quote, index) => (
+              // No star row and no byline. Owner-authored quotes carry neither
+              // a rating nor an author in the data model, so both were
+              // invented at render time — five stars nobody awarded, over a
+              // "Player N" nobody is. Real ratings and names arrive with
+              // published reviews (T-9.2.1).
               <article
                 key={`${quote}-${index}`}
-                className="rounded-[var(--sked-control-radius)] bg-white p-8 text-left shadow-[0_14px_40px_rgba(7,20,32,0.08)]"
+                className="rounded-[var(--sked-control-radius)] p-8 text-left shadow-[0_14px_40px_rgba(7,20,32,0.08)]"
+                style={{ backgroundColor: pageTheme.card, color: pageTheme.ink }}
               >
-                <div className="mb-5 flex gap-1" style={{ color: pageTheme.primary }}>
-                  {Array.from({ length: 5 }).map((_, starIndex) => (
-                    <Star key={starIndex} className="h-4 w-4 fill-current" />
-                  ))}
-                </div>
-                <p className="text-base leading-7 text-[#273220]">&quot;{quote}&quot;</p>
-                <p className="mt-6 text-sm font-black">
-                  - Player {index + 1}
-                </p>
+                <p className="text-base leading-7">&quot;{quote}&quot;</p>
               </article>
             ))}
           </div>
@@ -690,15 +684,12 @@ export default async function PublicPage({ params, searchParams }: Props) {
               <p className="font-black" style={{ color: pageTheme.ink }}>{displayName}</p>
               {contact.enabled && contactItems.length > 0 && (
                 <div className="flex flex-wrap gap-x-5 gap-y-2">
-                  {contactItems.map((item, index) => {
-                    const Icon = index === 0 ? MapPin : index === 1 ? Clock3 : Mail;
-                    return (
-                      <span key={item} className="inline-flex items-center gap-2">
-                        <Icon className="h-4 w-4" style={{ color: pageTheme.primary }} />
-                        {item}
-                      </span>
-                    );
-                  })}
+                  {contactItems.map(({ text, Icon }) => (
+                    <span key={text} className="inline-flex items-center gap-2">
+                      <Icon className="h-4 w-4" style={{ color: pageTheme.primary }} />
+                      {text}
+                    </span>
+                  ))}
                 </div>
               )}
             </div>

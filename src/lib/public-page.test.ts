@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  DEFAULT_PAGE_SECTIONS,
   PUBLIC_PAGE_THEMES,
   getPublicPageTheme,
+  readPublicPageSections,
   type ResolvedPublicPageTheme,
 } from "./public-page";
 
@@ -128,5 +130,44 @@ describe("public page themes", () => {
     expect(PUBLIC_PAGE_THEMES.some((t) => t.headingFont.includes("serif"))).toBe(
       true,
     );
+  });
+});
+
+/**
+ * A default is copy, not content. Anything a visitor could act on or verify —
+ * a phone number, an address, an amenity, a testimonial — has to come from the
+ * owner, because an unedited page is published at a real venue under that
+ * venue's name. These defaults previously shipped three invented testimonials,
+ * a plausible PH mobile number and four amenity claims, all enabled.
+ */
+describe("default page sections make no claims on the venue's behalf", () => {
+  const { storefront } = DEFAULT_PAGE_SECTIONS;
+
+  it("ships no testimonials", () => {
+    expect(storefront.testimonials.quotes).toEqual([]);
+    // Also off, so it cannot render a heading over an empty grid.
+    expect(storefront.testimonials.enabled).toBe(false);
+  });
+
+  it("ships no amenities, gallery photos, or contact details", () => {
+    expect(storefront.amenities.items).toEqual([]);
+    expect(storefront.gallery.photos).toEqual([]);
+    expect(Object.values(storefront.contact).filter((v) => typeof v === "string"))
+      .toEqual(["", "", "", "", ""]);
+  });
+
+  it("keeps generic marketing copy, which is the owner's to edit", () => {
+    // The line is between voice and fact: a headline claims nothing, an
+    // address does. Blanking these too would ship an empty-looking page.
+    expect(storefront.hero.headline.length).toBeGreaterThan(0);
+    expect(storefront.about.body.length).toBeGreaterThan(0);
+  });
+
+  it("does not resurrect defaults when an owner clears a list", () => {
+    const cleared = readPublicPageSections({
+      storefront: { amenities: { items: [] }, testimonials: { quotes: [] } },
+    });
+    expect(cleared.storefront.amenities.items).toEqual([]);
+    expect(cleared.storefront.testimonials.quotes).toEqual([]);
   });
 });

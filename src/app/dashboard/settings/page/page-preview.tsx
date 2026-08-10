@@ -12,7 +12,6 @@ import {
   Moon,
   ShieldCheck,
   Sparkles,
-  Star,
   Trophy,
   UsersRound,
 } from "lucide-react";
@@ -42,11 +41,6 @@ type PreviewProps = {
 type View = "storefront" | "booking";
 
 const FALLBACK_HERO = "/images/newbg.webp";
-const FALLBACK_GALLERY = [
-  "/images/cta.webp",
-  "/images/cta2.webp",
-  "/images/cta3.webp",
-];
 
 const HERO_FEATURES: Array<{ label: string; Icon: LucideIcon }> = [
   { label: "Easy booking", Icon: CalendarDays },
@@ -103,7 +97,9 @@ export function PagePreview({
   const cover = hero.coverUrl || FALLBACK_HERO;
   const logo = hero.logoUrl || "";
   const headline = splitHeadline(hero.headline || "Play More. Wait Less.");
-  const photos = gallery.photos.length > 0 ? gallery.photos : FALLBACK_GALLERY;
+  // Mirrors the live page: no stock fallback, so the preview shows the owner
+  // the empty state they will actually ship until they upload photos.
+  const photos = gallery.photos;
   const amenityIcons = [Trophy, Moon, Car, Sparkles];
   const socialLinks = [
     { href: facebook, label: "Facebook", Icon: Facebook },
@@ -219,7 +215,11 @@ export function PagePreview({
             )}
 
             {courts.enabled && (
-              <section className="grid gap-6 p-6 lg:grid-cols-[200px_minmax(0,1fr)]">
+              <section
+                className={`grid gap-6 p-6 ${
+                  photos.length > 0 ? "lg:grid-cols-[200px_minmax(0,1fr)]" : ""
+                }`}
+              >
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>
                     Courts
@@ -231,30 +231,24 @@ export function PagePreview({
                     {courts.intro || "Choose a court that fits your match, then reserve in seconds."}
                   </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {photos.slice(0, 3).map((photo, index) => (
-                    <article
-                      key={`${photo}-${index}`}
-                      className="relative min-h-56 overflow-hidden rounded-xl"
-                      style={{ backgroundColor: inkColor }}
-                    >
-                      <img src={photo} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#03101b] via-transparent to-transparent" />
-                      <div className="absolute inset-x-0 bottom-0 p-4 text-white">
-                        <p className="text-[10px] font-semibold uppercase text-white/70">
-                          Court {index + 1}
-                        </p>
-                        <h3 className="mt-1 text-sm font-black uppercase">
-                          Court {index + 1}
-                        </h3>
-                      </div>
-                    </article>
-                  ))}
-                </div>
+                {photos.length > 0 && (
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {photos.slice(0, 3).map((photo, index) => (
+                      <article
+                        key={`${photo}-${index}`}
+                        className="relative min-h-56 overflow-hidden rounded-xl"
+                        style={{ backgroundColor: inkColor }}
+                      >
+                        <img src={photo} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#03101b] via-transparent to-transparent" />
+                      </article>
+                    ))}
+                  </div>
+                )}
               </section>
             )}
 
-            {gallery.enabled && (
+            {gallery.enabled && photos.length > 0 && (
               <section className="border-t border-black/[0.08] bg-white p-6">
                 <div className="text-center">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>
@@ -348,11 +342,6 @@ export function PagePreview({
                       key={`${quote}-${index}`}
                       className="rounded-xl bg-white p-5 text-left shadow-[0_14px_40px_rgba(7,20,32,0.08)]"
                     >
-                      <div className="mb-3 flex gap-1" style={{ color: primaryColor }}>
-                        {Array.from({ length: 5 }).map((_, starIndex) => (
-                          <Star key={starIndex} className="h-3.5 w-3.5 fill-current" />
-                        ))}
-                      </div>
                       <p className="text-sm leading-6 text-[#273220]">
                         &quot;{quote}&quot;
                       </p>
