@@ -17,7 +17,7 @@ import {
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -155,6 +155,7 @@ function defaultForm(
 
 export function ReviewsView({
   orgId,
+  orgSlug,
   selectedDate,
   weekStart,
   weekEnd,
@@ -165,6 +166,7 @@ export function ReviewsView({
   schemaReady,
 }: {
   orgId: string;
+  orgSlug: string;
   selectedDate: string;
   weekStart: string;
   weekEnd: string;
@@ -335,6 +337,7 @@ export function ReviewsView({
 
   return (
     <div className="space-y-5">
+      <CollectReviewsCard orgSlug={orgSlug} />
       <header className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <h1 className="text-[28px] font-black tracking-[-0.04em] text-[#11140f]">
@@ -1361,5 +1364,69 @@ function Detail({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-bold text-[#777c73]">{label}</p>
       <p className="mt-1 font-black text-[#171a16] capitalize">{value}</p>
     </div>
+  );
+}
+
+/**
+ * The acquisition half of the review feature.
+ *
+ * `submit_public_review` verifies a reviewer by booking lookup, but nothing
+ * brings a customer to the form — nobody navigates to a venue's page to leave
+ * a review unprompted. The intended entry point is a QR printed and stood up
+ * at the venue, which reaches the player at the moment they finish playing.
+ * That path needs no email pipeline and no booking-completion job, which is
+ * why it ships ahead of both.
+ */
+function CollectReviewsCard({ orgSlug }: { orgSlug: string }) {
+  const [copied, setCopied] = useState(false);
+  // Filled in after mount rather than during render. The origin only exists in
+  // the browser, so deriving it inline makes the server and client markup
+  // disagree — React would keep the server's relative path and warn. An effect
+  // runs after hydration, so the upgrade to an absolute URL is safe.
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  // After the hooks, never before — an early return above them would change
+  // hook order between renders.
+  if (!orgSlug) return null;
+
+  const path = `/p/${orgSlug}/review`;
+  const reviewUrl = origin ? `${origin}${path}` : path;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(reviewUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard is blocked without a user gesture or on insecure origins;
+      // the link stays selectable on screen, so this is not worth surfacing.
+    }
+  }
+
+  return (
+    <section className="rounded-2xl border border-black/[0.09] bg-white p-5 shadow-sm">
+      <h2 className="text-sm font-black text-[#11140f]">Collect reviews at the venue</h2>
+      <p className="mt-1 text-sm leading-6 text-[#646861]">
+        Turn this link into a QR code and stand it at the counter or on the net
+        post. Players scan it right after they finish, and the date is already
+        filled in for them.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <code className="min-w-0 flex-1 truncate rounded-xl bg-[#f6f7f3] px-3 py-2.5 text-sm text-[#171a16]">
+          {reviewUrl}
+        </code>
+        <button
+          type="button"
+          onClick={copy}
+          className="inline-flex h-11 items-center gap-2 rounded-xl border border-black/[0.09] bg-white px-4 text-sm font-semibold text-[#171a16] shadow-sm"
+        >
+          {copied ? "Copied" : "Copy link"}
+        </button>
+      </div>
+    </section>
   );
 }
