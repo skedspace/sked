@@ -1,6 +1,6 @@
 # Task Tracker — SKED
 
-**Last updated:** 2026-08-05
+**Last updated:** 2026-08-10
 **Total target:** ~10–12 weeks
 
 ---
@@ -17,9 +17,9 @@ Phase 5: Landing Page    [██████████████████
 Phase 6: Page Design     [████████████████████] 100%  (14/14)
 Phase 7: Launch & Beta   [▓▓▓▓▓▓▓▓░░░░░░░░░░░░]  42%  (10/24)
 Phase 8: Polish & Infra  [████████████████████] 100%  (36/36)
-Phase 9: Page & Reviews  [███████░░░░░░░░░░░░░]  38%   (9/24)
+Phase 9: Page & Reviews  [█████████░░░░░░░░░░░]  43%  (12/28)
 ═══════════════════════════════════════════════════════
-Overall:                 [█████████████████░░░]  86% (186/216)
+Overall:                 [█████████████████░░░]  86% (189/220)
 
 Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 ```
@@ -40,8 +40,8 @@ Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 | **6. Page Design** | 14 | 14 | 0 | ✅ Done |
 | **7. Launch & Beta** | 24 | 10 | 0 | 🟡 In progress |
 | **8. Polish & Infra** | 36 | 36 | 0 | ✅ Done |
-| **9. Page & Reviews** | 24 | 9 | 1 | 🟡 In progress |
-| **Total** | **216** | **186** | **1** | **🟡 Launch prep active** |
+| **9. Page & Reviews** | 28 | 12 | 2 | 🟡 In progress |
+| **Total** | **220** | **189** | **2** | **🟡 Launch prep active** |
 
 Phase 8 ran **in parallel** with Phase 7 — it captures the dashboard, media, and
 infrastructure work done between 2026-07-29 and 2026-08-02 while the launch gates
@@ -671,7 +671,7 @@ actually booked leave a review that shows up on the page.
 ### 9.1 Public review submission
 
 ```
-[ ] [░░░░░░░░░░░░░░░░░░░░]   0%  (0/5)
+[~] [██████████████░░░░░░]  71%  (5/7, 1 blocked)
 ```
 
 - [x] **T-9.1.1** **Decided 2026-08-06: booking-lookup verification.** The reviewer proves the visit with the email *or* phone they booked with plus the booking date; everything still lands `pending` for owner moderation.
@@ -685,7 +685,14 @@ actually booked leave a review that shows up on the page.
   - Phone matching strips formatting (`+63 917 000 0000` matches `+639170000000`), with a guard so an email contact cannot accidentally match a null phone.
   - Failure messages are deliberately uniform (`REVIEW_NO_MATCH`) so the endpoint cannot be used as an oracle for whether a given person booked on a given date.
   - A partial unique index `reviews_one_per_booking` enforces the one-per-booking rule in the database, not just in the function.
-- [ ] **T-9.1.3** Build the review form route (rating stars, title, body) reached from the emailed link — no login.
+- [x] **T-9.1.3** **Public review form built** at `/p/[slug]/review` — no login. The original wording ("reached from the emailed link") was stale: T-9.1.1 replaced the emailed-token model with booking-lookup verification, and T-9.1.6 means there is no email to send. **The entry point is a printed QR at the venue**, which needs neither the email pipeline nor a booking-completion job, and reaches the player at the moment they finish playing.
+  - `submitPublicReview` in `src/lib/review-actions.ts` calls the RPC as `anon`. Failure messages collapse `REVIEW_NO_MATCH` to one string — the RPC's uniform-failure property only holds if the UI keeps the two cases indistinguishable too.
+  - The booking date defaults to **today in Asia/Manila**, not the browser's UTC date; for a late evening game those differ, and the QR is always scanned at the venue.
+  - Phone-first: verified at 375px with **no horizontal overflow and all 10 controls ≥ 44px** (contributes to T-9.6.2).
+  - Owners find the link on the Reviews dashboard via a new "Collect reviews at the venue" card with copy-to-clipboard.
+- [x] **T-9.1.7** **Google Business handoff.** `google_review_url` added to `org_settings` in `00048`, surfaced in dashboard Settings → General, and returned by `get_public_page` (whitelist in the RLS suite updated to match). Offered on the thank-you screen.
+  > **Deliberately shown to every reviewer, not only 4–5 star ones.** This reverses the gate I proposed while scoping: showing the Google link only to happy reviewers *is* review gating, which Google's contributed-content policy prohibits and the FTC's consumer-review rule treats as deceptive — with the venue's own Business Profile as the asset at risk. Verified in the browser: a **2-star** submission still gets the link. The behaviour is one named constant (`GATE_GOOGLE_LINK_BY_RATING`) in `review-form.tsx` if it is ever revisited.
+- [ ] **T-9.1.8** **QR image generation.** The dashboard gives the owner the URL to turn into a QR, but does not render the QR itself. That needs a dependency (`qrcode` or similar) and **`pnpm` is not on PATH and `corepack pnpm` fails with a signature error**, so no dependency could be installed or verified here.
 - [-] **T-9.1.4** ~~Add the "leave a review" email to the Resend templates~~ — **blocked on T-9.1.6.** There are no Resend templates; nothing in the codebase sends email.
 - [x] **T-9.1.5** RLS suite extended — **48 tests green.** Review coverage: valid submission lands `pending`; duplicate rejected; unknown contact rejected; right contact + wrong date rejected; both failure modes return an identical message; another org's slug rejected; rating out of range rejected; empty title or body rejected; cancelled booking rejected; phone match ignores formatting; blank contact does not match a null phone; anon cannot read `reviews`; owner sees the pending review; the other org's owner does not.
 
@@ -709,6 +716,20 @@ actually booked leave a review that shows up on the page.
   A booking customer currently receives **nothing** after booking — no confirmation, no reminder, no way to cancel without contacting the owner. That is a bigger launch gap than anything in Phase 9 and should outrank it. The MVP success criteria include "Email delivery rate > 98%", which cannot be measured because no email is sent.
 
   Note the related gap: nothing transitions a booking to `completed`. The owner sets it by hand from the dashboard, so any future "review your visit" trigger needs that job built too.
+
+### 🔴 T-9.1.9 — the reviews dashboard does not hydrate
+
+```
+[ ] [░░░░░░░░░░░░░░░░░░░░]   0%  (0/1)  — blocks the whole review feature
+```
+
+- [ ] **T-9.1.9** **`ReviewsView` renders but never hydrates, so review moderation is impossible.** Found while adding the collect-reviews card. Every control inside `src/app/dashboard/reviews/reviews-view.tsx` is dead — Filters, Add review, the status tabs, search, and the approve/publish actions.
+
+  **Confirmed pre-existing, not caused by the Phase 9 work.** Evidence: elements in the dashboard *layout* (the nav) carry `__reactFiber$*` keys and respond; every element inside `ReviewsView` has none. All JS chunks return 200, including `app/dashboard/reviews/page.js`, so nothing failed to load. Deleting `.next` and restarting the dev server did not change it. Rendering the new card behind `{false && …}` did not change it either — the rest of the view still failed to hydrate.
+
+  **Why this outranks the rest of 9.2:** `submit_public_review` inserts every review as `pending`, and the storefront will only ever show `published`. With moderation dead, **no review can ever reach a storefront**, so building the display in 9.2 would ship something that is permanently empty. Fix this first.
+
+  First suspects: a hydration mismatch from render-time date work inside the view (`new Date(selectedDate)`, date-fns `format`, `isWithinInterval`) between the server's timezone and the browser's, given the app defaults to Asia/Manila; or `dashboard/reviews/error.tsx` swallowing a render error. Needs checking against a production build with `DEV_AUTH` off, since the mock client may be involved.
 
 ### 9.2 Public review display
 
@@ -744,12 +765,36 @@ token system exists would mean doing the work twice.
 ### 9.4 Credibility pass
 
 ```
-[ ] [░░░░░░░░░░░░░░░░░░░░]   0%  (0/3)
+[~] [██████████░░░░░░░░░░]  50%  (2/4)
 ```
 
-- [ ] **T-9.4.1** Replace the default testimonials with real approved reviews. `DEFAULT_PAGE_SECTIONS.storefront.testimonials` ships three invented quotes attributed to "Player 1/2/3" and is **enabled by default**, so every unedited storefront displays fake social proof. Depends on T-9.2.1.
-- [ ] **T-9.4.2** Auto-hide sections with no real content. Gallery is enabled by default and falls back to three stock images (`/images/cta*.webp`) when the owner has uploaded none — a venue's page shows generic stock photos as if they were its own.
+The scope here was **wider than the two entries below described.** Auditing the
+defaults for T-9.4.1 turned up four more fabrications on the same page, all
+enabled, all published under a real venue's name:
+
+| Fabrication | Where |
+|---|---|
+| Contact block: `123 Pickleball Lane`, `+63 912 345 6789`, `hello@acepickleball.ph` | `DEFAULT_PAGE_SECTIONS.storefront.contact` |
+| Four amenity claims (`Night play`, `Free parking`) the venue may not offer | `…storefront.amenities.items` |
+| Stock gallery photos labelled **"Court 1/2/3"** with a hardcoded **"Available"** badge | `p/[slug]/page.tsx` courts collage |
+| A five-star row over every testimonial, and amenity blurbs chosen by array index | same file |
+
+The contact block was the most dangerous of these — a plausible PH mobile
+number and a real-looking domain are details a customer can *act on*, unlike a
+generic quote. The amenity blurbs were also mismatched by construction: the
+description was picked by array position, so an owner who typed "Pro shop"
+first got "Easy and convenient on-site parking." underneath it.
+
+**Rule applied:** generic marketing voice may be defaulted; a verifiable claim
+about a specific venue may not. So the hero headline and About copy stay, and
+everything in the table above is now empty and self-hiding. Pinned by four unit
+tests in `public-page.test.ts` (19 green) so a future "helpful default" cannot
+quietly reintroduce them.
+
+- [~] **T-9.4.1** **Fake testimonials removed.** Defaults are now `enabled: false` with `quotes: []`, and the render drops both the invented `- Player N` byline and the five-star row — neither a rating nor an author exists in the data model, so both were invented at render time. The *replacement* half of this task (show real approved reviews) still depends on T-9.2.1 and is not done.
+- [x] **T-9.4.2** **Auto-hide implemented.** `FALLBACK_GALLERY` is deleted from both the live page and the dashboard preview; gallery, amenities, testimonials and contact all hide themselves when empty, and the courts section collapses to a single column rather than rendering three empty slabs. Verified in the browser against `marco-pickleball`: no `Player 1`, no `123 Pickleball Lane`, no `+63 912 345 6789`, no `acepickleball.ph`, no `Available`, no `/images/cta*.webp`, page still renders 8 sections. Typecheck and lint both exit 0.
 - [ ] **T-9.4.3** Surface `promo` and `faq` in the editor — both are fully built and disabled by default, so owners are unlikely to discover them.
+- [ ] **T-9.4.4** **Apply `00047_clear_seeded_placeholder_content.sql` — written, NOT yet applied or tested.** Code changes alone do not reach venues that already saved. `page-editor.tsx:187` hydrates editor state via `readPublicPageSections()`, which merges `DEFAULT_PAGE_SECTIONS` in, then writes the merged object back to `pages.sections` — so **any owner who opened the page editor once and pressed Save has our placeholders persisted as their own data.** The migration deletes only values that *exactly* match the strings we shipped, so an owner who typed a real phone number or genuinely offers "Free parking" keeps it; that equality check is the safety property and must not be loosened to `ILIKE`. Could not be run here: Docker was not running, and per T-7.2.11 the scheduler's stack shares ports 54321–54323 with the POS project, so containers were not started unilaterally. **Needs a review, a `pages.sections` backup, and a run against the real database before launch.**
 
 ### 9.5 New sections
 
