@@ -104,6 +104,7 @@ type OrgSettings = {
   business_type: string;
   website: string;
   address: string;
+  google_review_url: string;
   primary_color: string;
   accent_color: string;
   booking_window_days: number;
@@ -347,6 +348,7 @@ export function SettingsView({
       business_type: form.business_type,
       website: form.website.trim() || null,
       address: form.address.trim() || null,
+      google_review_url: form.google_review_url.trim() || null,
       primary_color: form.primary_color,
       accent_color: form.accent_color,
       booking_window_days: Number(form.booking_window_days) || 7,
@@ -1427,6 +1429,17 @@ function BusinessInfoSection({
           value={form.address}
           editing={editing}
           onChange={(value) => update("address", value)}
+        />
+        {/*
+          Offered to every reviewer after they submit, regardless of rating —
+          showing it only to happy reviewers would be review gating. See the
+          constant in p/[slug]/review/review-form.tsx.
+        */}
+        <TextSetting
+          label="Google review link"
+          value={form.google_review_url}
+          editing={editing}
+          onChange={(value) => update("google_review_url", value)}
         />
       </div>
     </SettingsSection>

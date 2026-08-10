@@ -345,6 +345,9 @@ describe("RLS: Public Access (SECURITY DEFINER)", () => {
     "services",
     "is_published",
     "plan",
+    // 00048: the venue's public Google Business review link, read by the
+    // review form's post-submission handoff. Public by nature.
+    "google_review_url",
   ];
 
   it("exposes only whitelisted columns via get_public_page", async () => {

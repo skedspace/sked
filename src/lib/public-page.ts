@@ -276,13 +276,12 @@ export const DEFAULT_PAGE_SECTIONS: PublicPageSections = {
     },
     amenities: {
       enabled: true,
+      // No default items: every plausible amenity ("Free parking", "Night
+      // play") is a factual claim about a specific venue. Shipping them
+      // enabled meant unedited pages advertised facilities the venue may not
+      // have. The section hides itself while this is empty.
       title: "Everything players need",
-      items: [
-        "Top quality courts",
-        "Night play",
-        "Free parking",
-        "Amenities",
-      ],
+      items: [],
     },
     courts: {
       enabled: true,
@@ -302,13 +301,12 @@ export const DEFAULT_PAGE_SECTIONS: PublicPageSections = {
       ctaLabel: "Claim offer",
     },
     testimonials: {
-      enabled: true,
+      // Off by default and empty: these were three invented quotes rendered
+      // under fabricated "- Player 1/2/3" bylines on every unedited
+      // storefront. Real approved reviews replace this once T-9.2.1 lands.
+      enabled: false,
       title: "Loved by Players",
-      quotes: [
-        "Super easy to book and the courts are always in perfect condition!",
-        "Love the vibes here. Great spot for weekend games with friends.",
-        "Clean courts, great staff, and zero hassle booking. Highly recommend!",
-      ],
+      quotes: [],
     },
     faq: {
       enabled: false,
@@ -325,12 +323,16 @@ export const DEFAULT_PAGE_SECTIONS: PublicPageSections = {
       ],
     },
     contact: {
+      // Blank by default. The previous placeholders were a plausible PH mobile
+      // number and a real-looking address and domain, published as a venue's
+      // own contact details — the highest-risk fake on the page, because a
+      // customer could act on them. Empty entries are filtered before render.
       enabled: true,
-      address: "123 Pickleball Lane",
-      city: "Makati City, PH",
-      hours: "Open Daily, 6:00 AM - 11:00 PM",
-      phone: "+63 912 345 6789",
-      email: "hello@acepickleball.ph",
+      address: "",
+      city: "",
+      hours: "",
+      phone: "",
+      email: "",
     },
   },
   booking: {

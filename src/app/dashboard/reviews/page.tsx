@@ -57,7 +57,13 @@ export default async function ReviewsPage({
     .order("reviewed_at", { ascending: false })
     .limit(500);
 
-  const [customersResult, resourcesResult, bookingsResult] = await Promise.all([
+  const [orgResult, customersResult, resourcesResult, bookingsResult] = await Promise.all([
+    // Needed to build the public review link the owner prints as a QR.
+    supabase
+      .from("organizations")
+      .select("slug")
+      .eq("id", membership.org_id)
+      .maybeSingle(),
     supabase
       .from("customers")
       .select("id, name, email, phone")
@@ -86,6 +92,7 @@ export default async function ReviewsPage({
   return (
     <ReviewsView
       orgId={membership.org_id}
+      orgSlug={(orgResult.data as { slug?: string } | null)?.slug ?? ""}
       selectedDate={selectedDate.toISOString()}
       weekStart={weekStart.toISOString()}
       weekEnd={weekEnd.toISOString()}

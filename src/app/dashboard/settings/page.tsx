@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS = {
   business_type: "Pickleball Club",
   website: "",
   address: "",
+  google_review_url: "",
   primary_color: "#22C55E",
   accent_color: "#0F172A",
   booking_window_days: 7,
@@ -112,6 +113,18 @@ export default async function SettingsPage() {
       .limit(1),
   ]);
 
+  // These columns are nullable TEXT. A spread lets a stored null overwrite the
+  // "" defaults above, and settings-view's saveChanges() then calls .trim() on
+  // it — so an org that saved once with the field blank could not save again.
+  const storedSettings = (settingsResult.error ? null : settingsResult.data) ?? {};
+  const mergedSettings: Record<string, unknown> = {
+    ...DEFAULT_SETTINGS,
+    ...storedSettings,
+  };
+  for (const key of ["website", "address", "google_review_url"]) {
+    mergedSettings[key] ??= "";
+  }
+
   return (
     <SettingsView
       orgId={membership.org_id}
@@ -119,10 +132,7 @@ export default async function SettingsPage() {
       currentUserId={session.user.id}
       isOwner={membership.role === "owner"}
       organization={(orgResult.data ?? {}) as any}
-      settings={{
-        ...DEFAULT_SETTINGS,
-        ...((settingsResult.error ? null : settingsResult.data) ?? {}),
-      }}
+      settings={mergedSettings as any}
       members={(membersResult.data ?? []) as any[]}
       invitations={
         (invitationsResult.error ? [] : (invitationsResult.data ?? [])) as any[]

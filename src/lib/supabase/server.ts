@@ -64,6 +64,10 @@ function createMockClient() {
       ],
       is_published: true,
       plan: "trial",
+      // Mirrors the column added to get_public_page in 00048. Without it the
+      // dev mock silently diverges from the real RPC and the review form's
+      // Google handoff is unreachable locally.
+      google_review_url: "https://maps.google.com/?cid=0000000000000000000",
       primary_color: "#72c914",
     },
     error: null,

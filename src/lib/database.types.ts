@@ -2158,6 +2158,7 @@ export type Database = {
         Returns: {
           bio: string
           cover_url: string
+          google_review_url: string
           is_published: boolean
           logo_url: string
           org_id: string
