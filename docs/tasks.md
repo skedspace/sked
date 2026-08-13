@@ -15,11 +15,11 @@ Phase 3: Payments        [██████████████████
 Phase 4: Harden & Ship   [████████████████████] 100%  (16/16)
 Phase 5: Landing Page    [███████████████████░]  95%  (20/21, 1 removed)
 Phase 6: Page Design     [████████████████████] 100%  (14/14)
-Phase 7: Launch & Beta   [▓▓▓▓▓▓▓▓░░░░░░░░░░░░]  42%  (10/24)
+Phase 7: Launch & Beta   [▓▓▓▓▓▓▓▓░░░░░░░░░░░░]  40%  (10/25)
 Phase 8: Polish & Infra  [████████████████████] 100%  (36/36)
 Phase 9: Page & Reviews  [██████████░░░░░░░░░░]  48%  (15/31)
 ═══════════════════════════════════════════════════════
-Overall:                 [█████████████████░░░]  86% (192/223)
+Overall:                 [█████████████████░░░]  86% (192/224)
 
 Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 ```
@@ -38,10 +38,10 @@ Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 | **4. Harden & Ship** | 16 | 16 | 0 | ✅ Done |
 | **5. Landing Page** | 21 | 20 | 0 | ✅ Done (1 removed) |
 | **6. Page Design** | 14 | 14 | 0 | ✅ Done |
-| **7. Launch & Beta** | 24 | 10 | 0 | 🟡 In progress |
+| **7. Launch & Beta** | 25 | 10 | 0 | 🟡 In progress |
 | **8. Polish & Infra** | 36 | 36 | 0 | ✅ Done |
 | **9. Page & Reviews** | 31 | 15 | 0 | 🟡 In progress |
-| **Total** | **223** | **192** | **1** | **🟡 Launch prep active** |
+| **Total** | **224** | **192** | **1** | **🟡 Launch prep active** |
 
 Phase 8 ran **in parallel** with Phase 7 — it captures the dashboard, media, and
 infrastructure work done between 2026-07-29 and 2026-08-02 while the launch gates
@@ -514,15 +514,19 @@ These have been implemented ahead of schedule.
 
 **Remaining lint warnings (non-blocking, deferred):**
 
-- [~] **T-7.2.5** Replace `<img>` with `next/image` on the public page and landing components — **public page done in T-9.6.1; 14 warnings remain elsewhere.** Not closed, contrary to the earlier note on T-9.6.1: the count rose rather than fell to zero because work landed since this was written added more `<img>` tags. Remaining, by file:
-  | Count | File |
-  |---|---|
-  | 5 | `dashboard/settings/page/page-preview.tsx` |
-  | 2 | `components/ui/accordion-feature-section.tsx` |
-  | 2 | `dashboard/courts/courts-view.tsx` |
-  | 1 each | `settings-view.tsx`, `testimonials-columns-1.tsx`, `booking-form.tsx`, `board-sponsor-bar.tsx`, `sponsor-marquee.tsx` |
+- [~] **T-7.2.5** Replace `<img>` with `next/image` on the public page and landing components — **all public-path work is done; 13 warnings remain, none of them public-facing.** Not closed, contrary to the earlier note on T-9.6.1: the count rose rather than fell to zero because work landed since this was written added more `<img>` tags.
 
-  Only `accordion-feature-section` and `testimonials-columns-1` are on the public marketing path and affect LCP. The dashboard ones (`page-preview`, `courts-view`, `settings-view`) are behind auth and matter far less — `page-preview` in particular renders many small thumbnails where the optimizer may not pay for itself.
+  Done: the storefront (6 tags, T-9.6.1) and the landing testimonial avatars in `testimonials-columns-1.tsx`, whose sources are local `/images/testimonials/*.webp`. Verified via `currentSrc` that the avatars now resolve through `/_next/image`. They also became lazy in the process — previously the raw tags loaded eagerly despite sitting well below the fold.
+
+  Remaining, by file — **every one is behind auth or unreachable**:
+  | Count | File | Why it is not urgent |
+  |---|---|---|
+  | 5 | `dashboard/settings/page/page-preview.tsx` | Behind auth; many small thumbnails where the optimizer may not pay for itself |
+  | 2 | `components/ui/accordion-feature-section.tsx` | **Dead code** — see T-7.2.5a |
+  | 2 | `dashboard/courts/courts-view.tsx` | Behind auth |
+  | 1 each | `settings-view.tsx`, `booking-form.tsx`, `board-sponsor-bar.tsx`, `sponsor-marquee.tsx` | Behind auth or on the board view |
+
+- [ ] **T-7.2.5a** **Delete `src/components/ui/accordion-feature-section.tsx` (113 lines, unused).** Nothing in `src/` imports it. Its 2 `<img>` tags were deliberately *not* converted: optimising a component nobody renders is wasted work, and its images are `https://images.unsplash.com/...` URLs absent from `remotePatterns`, so `next/image` would reject them at runtime if it were ever wired up. Deleting removes the 2 warnings outright. Left in place pending a call on whether it is wanted.
 - [ ] **T-7.2.6** Type the remaining `any` escapes (~120 warnings, concentrated in `supabase/server.ts`, `supabase/client.ts`, `posthog-provider`, `session-control`)
 - [ ] **T-7.2.7** Decide the fate of the dead `SkedLockup` / `WaveDecor` components in `board-sponsor-bar.tsx` — remove or re-wire (left in place deliberately; they're finished design assets)
 - [ ] **T-7.2.8** `src/lib/supabase/rls.test.ts` has unused scaffolding (`beforeAll`, `ANON_KEY`, `authedClient`) — resolve as part of T-7.2.3 rather than deleting it blind
