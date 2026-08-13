@@ -2,6 +2,10 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  sendBookingConfirmation,
+  sendBookingCancellation,
+} from "@/lib/notifications/booking-notifications";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 
@@ -155,6 +159,24 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
       payload: { resource_id: resourceId, service_id: serviceId, source: "public" },
     });
 
+    // 6. Confirmation email. Awaited rather than fired and forgotten, because
+    // a serverless function can be frozen the moment the response is returned
+    // and a dangling promise would simply never run. It cannot fail the
+    // booking: sendBookingConfirmation returns a status and never throws, and
+    // the result is deliberately not consulted — the booking is already
+    // committed, and the customer sees the confirmation screen either way.
+    await sendBookingConfirmation({
+      bookingId: booking.id,
+      orgId,
+      customerName,
+      customerEmail,
+      startsAt: new Date(startTime),
+      endsAt: new Date(endTime),
+      resourceId,
+      serviceId,
+      priceCents,
+    });
+
     revalidatePath("/dashboard");
     return { success: true, bookingId: booking.id };
   } catch (err) {
@@ -210,6 +232,11 @@ export async function cancelBooking(bookingId: string, reason?: string) {
       });
     }
   }
+
+  // Tell the customer their booking is gone. Until now cancellation was
+  // entirely silent from their side — the owner cancelled in the dashboard and
+  // the customer found out by turning up. Never throws; see email.ts.
+  await sendBookingCancellation(bookingId, reason);
 
   revalidatePath("/dashboard");
   return { success: true };
