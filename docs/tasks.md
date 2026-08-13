@@ -435,7 +435,7 @@ These have been implemented ahead of schedule.
 | **Custom Subdomains** | ✅ Done | Subdomain in org settings, `<name>.sked.space` support |
 | **Discount Codes** | ✅ Done | RPC validation, settings CRUD, booking form integration |
 | **Packages/Credits** | ✅ Done | Prepaid session bundles with RPC redemption, settings CRUD |
-| **Recurring Bookings** | ✅ Done | Recurring rules engine, auto-generated future bookings |
+| **Recurring Bookings** | ⚠️ **Engine only** | `lib/recurring.ts` implements the rules engine, but nothing imports it and there is no route — an owner cannot create one. See **T-7.2.5b** |
 | **Admin Dashboard** | ✅ Done | Platform overview at `/admin`, org/user/booking tables |
 | **Dev Auth Bypass** | ✅ Done | `DEV_AUTH=true` bypasses sign-in for workspace browsing |
 
@@ -526,7 +526,31 @@ These have been implemented ahead of schedule.
   | 2 | `dashboard/courts/courts-view.tsx` | Behind auth |
   | 1 each | `settings-view.tsx`, `booking-form.tsx`, `board-sponsor-bar.tsx`, `sponsor-marquee.tsx` | Behind auth or on the board view |
 
-- [ ] **T-7.2.5a** **Delete `src/components/ui/accordion-feature-section.tsx` (113 lines, unused).** Nothing in `src/` imports it. Its 2 `<img>` tags were deliberately *not* converted: optimising a component nobody renders is wasted work, and its images are `https://images.unsplash.com/...` URLs absent from `remotePatterns`, so `next/image` would reject them at runtime if it were ever wired up. Deleting removes the 2 warnings outright. Left in place pending a call on whether it is wanted.
+- [x] **T-7.2.5a** **Dead module sweep — 13 files, ~1,300 lines removed.** A scan of all 301 modules under `src/` (excluding Next.js entry points, tests and config shims) found 14 that nothing imports. Each was verified individually before deletion, since a static scan cannot see dynamic imports:
+
+  | Lines | Module | Note |
+  |---|---|---|
+  | 299 | `lib/mock-data.ts` | `supabase/server.ts` carries its own inline mock |
+  | 159 | `components/shared/owner-onboarding-banner.tsx` | |
+  | 157 | `components/payments/refund-manager.tsx` | |
+  | 148 | `components/payments/payment-history.tsx` | |
+  | 118 | `lib/payments/paymongo.ts` | the live integration is `platform-paymongo.ts` |
+  | 114 | `components/ui/accordion-feature-section.tsx` | Unsplash sources, never rendered |
+  | 91 | `app/admin/settings/admin-settings.tsx` | orphaned beside a working `page.tsx` |
+  | 77 | `components/ui/toast.tsx` | no toaster or `use-toast` imports it |
+  | 59 | `components/ui/shine-border.tsx` | |
+  | 54 | `components/ui/gradient-dots.tsx` | |
+  | 35 | `lib/packages.ts` | the packages UI queries Supabase directly |
+  | 0 | `components/shared/org-settings-form.tsx` | empty file |
+  | 0 | `components/ui/background-pixel-stars.tsx` | empty file |
+
+  Four candidates (`paymongo`, `recurring`, `toast`, `packages`) first appeared to have references; those turned out to be substring matches (`platform-paymongo`, `use-toast`, the word "packages"), confirmed by checking import statements specifically.
+
+  Verified after deletion: typecheck clean, 19 tests pass, and 7 routes still return 200 — including `/admin/settings`, `/dashboard/payments` and `/dashboard/settings/packages`, whose components were among those removed.
+
+- [ ] **T-7.2.5b** **`lib/recurring.ts` is an unwired feature, not dead weight — kept deliberately.** It exports a complete engine (`createRecurringRule`, `formatFrequency`, `RecurringRule`) but **nothing calls it and there is no route under `src/app` for it**. It was excluded from the sweep above because deleting it would erase a half-built feature rather than remove clutter.
+
+  > ⚠️ This makes **"Recurring Bookings ✅ Done"** in *Completed Post-MVP Features* wrong — the rules engine exists, but it is unreachable, so no owner can create a recurring booking. Either wire it to a UI or drop the claim. Same false-completion pattern as T-0.3.4 and T-9.1.6.
 - [ ] **T-7.2.6** Type the remaining `any` escapes (~120 warnings, concentrated in `supabase/server.ts`, `supabase/client.ts`, `posthog-provider`, `session-control`)
 - [ ] **T-7.2.7** Decide the fate of the dead `SkedLockup` / `WaveDecor` components in `board-sponsor-bar.tsx` — remove or re-wire (left in place deliberately; they're finished design assets)
 - [ ] **T-7.2.8** `src/lib/supabase/rls.test.ts` has unused scaffolding (`beforeAll`, `ANON_KEY`, `authedClient`) — resolve as part of T-7.2.3 rather than deleting it blind
