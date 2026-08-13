@@ -17,9 +17,9 @@ Phase 5: Landing Page    [██████████████████
 Phase 6: Page Design     [████████████████████] 100%  (14/14)
 Phase 7: Launch & Beta   [▓▓▓▓▓▓▓▓░░░░░░░░░░░░]  42%  (10/24)
 Phase 8: Polish & Infra  [████████████████████] 100%  (36/36)
-Phase 9: Page & Reviews  [█████████░░░░░░░░░░░]  43%  (12/28)
+Phase 9: Page & Reviews  [█████████░░░░░░░░░░░]  45%  (14/31)
 ═══════════════════════════════════════════════════════
-Overall:                 [█████████████████░░░]  86% (189/220)
+Overall:                 [█████████████████░░░]  86% (191/223)
 
 Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 ```
@@ -40,8 +40,8 @@ Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 | **6. Page Design** | 14 | 14 | 0 | ✅ Done |
 | **7. Launch & Beta** | 24 | 10 | 0 | 🟡 In progress |
 | **8. Polish & Infra** | 36 | 36 | 0 | ✅ Done |
-| **9. Page & Reviews** | 28 | 12 | 2 | 🟡 In progress |
-| **Total** | **220** | **189** | **2** | **🟡 Launch prep active** |
+| **9. Page & Reviews** | 31 | 14 | 1 | 🟡 In progress |
+| **Total** | **223** | **191** | **1** | **🟡 Launch prep active** |
 
 Phase 8 ran **in parallel** with Phase 7 — it captures the dashboard, media, and
 infrastructure work done between 2026-07-29 and 2026-08-02 while the launch gates
@@ -693,13 +693,13 @@ actually booked leave a review that shows up on the page.
 - [x] **T-9.1.7** **Google Business handoff.** `google_review_url` added to `org_settings` in `00048`, surfaced in dashboard Settings → General, and returned by `get_public_page` (whitelist in the RLS suite updated to match). Offered on the thank-you screen.
   > **Deliberately shown to every reviewer, not only 4–5 star ones.** This reverses the gate I proposed while scoping: showing the Google link only to happy reviewers *is* review gating, which Google's contributed-content policy prohibits and the FTC's consumer-review rule treats as deceptive — with the venue's own Business Profile as the asset at risk. Verified in the browser: a **2-star** submission still gets the link. The behaviour is one named constant (`GATE_GOOGLE_LINK_BY_RATING`) in `review-form.tsx` if it is ever revisited.
 - [ ] **T-9.1.8** **QR image generation.** The dashboard gives the owner the URL to turn into a QR, but does not render the QR itself. That needs a dependency (`qrcode` or similar) and **`pnpm` is not on PATH and `corepack pnpm` fails with a signature error**, so no dependency could be installed or verified here.
-- [-] **T-9.1.4** ~~Add the "leave a review" email to the Resend templates~~ — **blocked on T-9.1.6.** There are no Resend templates; nothing in the codebase sends email.
+- [-] **T-9.1.4** ~~Add the "leave a review" email to the Resend templates~~ — **partially unblocked.** A template layer and a working email channel now exist (T-9.1.10), so the template itself is easy. Still blocked on the *trigger*: nothing knows a visit has finished, which is T-9.1.11's scheduler. The QR handles review collection in the meantime, so this is no longer on the critical path.
 - [x] **T-9.1.5** RLS suite extended — **48 tests green.** Review coverage: valid submission lands `pending`; duplicate rejected; unknown contact rejected; right contact + wrong date rejected; both failure modes return an identical message; another org's slug rejected; rating out of range rejected; empty title or body rejected; cancelled booking rejected; phone match ignores formatting; blank contact does not match a null phone; anon cannot read `reviews`; owner sees the pending review; the other org's owner does not.
 
-### 🔴 T-9.1.6 — Email pipeline does not exist
+### 🔴 T-9.1.6 — Email pipeline (confirmation + cancellation now built)
 
 ```
-[ ] [░░░░░░░░░░░░░░░░░░░░]   0%  (0/1)
+[~] [█████░░░░░░░░░░░░░░░]  25%  (1/4)
 ```
 
 - [ ] **T-9.1.6** **Build the Resend integration that Phase 2 claims is done.** Discovered while scoping T-9.1.1. `resend` and `react-email` are in `package.json`, `RESEND_API_KEY` / `RESEND_FROM_EMAIL` are validated in `src/lib/env.ts`, and the admin panel has an `integration_resend_connected` flag — but **`new Resend(...)` and `resend.emails.*` appear nowhere in `src/`. No email is ever sent.**
@@ -716,6 +716,25 @@ actually booked leave a review that shows up on the page.
   A booking customer currently receives **nothing** after booking — no confirmation, no reminder, no way to cancel without contacting the owner. That is a bigger launch gap than anything in Phase 9 and should outrank it. The MVP success criteria include "Email delivery rate > 98%", which cannot be measured because no email is sent.
 
   Note the related gap: nothing transitions a booking to `completed`. The owner sets it by hand from the dashboard, so any future "review your visit" trigger needs that job built too.
+
+  **Partially delivered 2026-08-10 — `src/lib/notifications/`.** Confirmation and cancellation now send; the reminder does not. See T-9.1.10 / T-9.1.11 / T-9.1.12 below.
+
+- [x] **T-9.1.10** **Email channel + booking confirmation and cancellation.** `resend@4.8.0` was already installed and both env vars validated since Phase 2, but nothing ever constructed a client.
+  - `notifications/email.ts` — Resend wrapper. **Never throws**; every failure is a returned status, because a notification must never be able to fail the booking that triggered it (the same rule 00045 applies to the player insert). A missing key returns `skipped`, not `failed` — both vars are optional, so dev and CI legitimately run unconfigured, and conflating the two would make delivery health unreadable once we report on it.
+  - `notifications/templates.ts` — plain-string templates, **not** React Email: `react-email` is in package.json but `@react-email/components` and `@react-email/render` are not installed, and no dependency could be added (`pnpm` off PATH, `corepack pnpm` fails a signature check). Every template ships a real text alternative, which materially affects spam filtering — and the MVP target is 98% delivery.
+  - **Times render in the org's timezone, never the server's.** `formatDate`/`formatTime` in `utils.ts` pin no zone, so on Vercel (UTC) a 7pm Manila booking would have read 11am. Pinned by a test whose fixture is exactly that case.
+  - `bookingReference()` derives a quotable `SK-XXXXXX` code from the booking UUID, closing T-2.3.4's "confirmation code" without a migration. It is not a secret and authenticates nothing.
+  - **The confirmation deliberately contains no cancellation link.** T-2.3.6 is marked ✅ but there is no cancel route and no token table, so a link would 404. The email points at the venue instead; a test asserts the email contains no `<a>` at all so this cannot regress into a broken promise.
+  - Awaited rather than fire-and-forget: a serverless function can freeze the moment it responds, and a dangling promise would simply never run.
+  - **18 unit tests**, covering timezone correctness, the invalid-zone fallback, HTML escaping of customer names (the owner reads these too), free-booking omission, `tstzrange` parsing including the NaN-date case, and both degradation paths. Full suite 37 green.
+
+- [ ] **T-9.1.11** **24h reminder — deliberately not built.** It needs a scheduler (Vercel Cron is the natural fit, `hkg1` is already the region) plus a `notifications_sent` table for idempotency. **I chose not to ship it untested:** Docker is offline, so neither the migration nor the job could be exercised, and a cron with broken idempotency does not fail quietly — it emails every upcoming customer repeatedly. Event-driven mail is safe to ship unverified in a way a retry loop is not. Design note: the reminder does not need booking `completed` status; `end_time`/`start_time` windows plus `status = 'confirmed'` is sufficient.
+
+- [ ] **T-9.1.12** **Nothing here is verified against a real send.** `RESEND_API_KEY` is unset locally, Docker is down, and `DEV_AUTH=true` mocks the Supabase client, so the wiring into `createBooking` / `cancelBooking` has **never executed end to end**. The templates and the degradation logic are unit-tested; the delivery path is not. Needs a staging run with real keys before launch.
+
+  > **Related finding:** `SEMAPHORE_API_KEY` / `SEMAPHORE_SENDER_NAME` are already declared in `env.ts` — a Philippine SMS gateway — with **no implementing code anywhere**, exactly as Resend was. For a PH venue SMS almost certainly outperforms email for the review nudge and the reminder. `notifications/` is channel-shaped so an SMS adapter slots in beside `email.ts`; Semaphore needs only an HTTPS POST, no SDK. Not built here because it could not be tested against the live API.
+
+  > **Also still dead:** `notify_waitlist_for_slot` returns `customer_email` / `customer_name` / `customer_phone` and **nothing consumes it**. The waitlist notifies no one. Now cheap to wire once a channel is trusted.
 
 ### 🔴 T-9.1.9 — the reviews dashboard does not hydrate
 
@@ -750,7 +769,7 @@ variations**. Sequenced so the theme tokens land first — restyling before the
 token system exists would mean doing the work twice.
 
 ```
-[~] [████████████████░░░░]  83%  (5/6)
+[x] [████████████████████] 100%  (6/6)
 ```
 
 - [x] **T-9.3.1** Scope agreed — see above.
@@ -760,7 +779,8 @@ token system exists would mean doing the work twice.
 - [x] **T-9.3.6** **`hero` and `surface` tokens wired to layout.** `hero: "centered"` switches the hero from a two-column grid to a stacked, centred column with the booking panel beneath, and swaps the left-to-right scrim for a vertical one (a horizontal gradient only reads correctly against left-aligned copy). `surface` now drives the five section bands: `flat` drops the hairlines and background so bands melt into the page, `bordered` keeps the hairline, `elevated` adds a soft shadow. The bands previously hardcoded `bg-white`, which would have rendered white slabs on the two dark themes.
 - [x] **T-9.3.8** **Preview-only `?theme=` override.** Honoured only alongside `?preview=1`, so the dashboard can show a live theme preview without letting anyone restyle a live venue page from a URL. A previewed theme also ignores the saved `primary_color`, which otherwise masks the accent difference between variations. Verified all 7 themes resolve distinct primary / paper / radius / heading-font.
 - [x] **T-9.3.9** **🔴 Fixed unreadable "Night Match" theme.** Pre-existing: its palette was `["#eab308", "#1c1917", "#34302c", "#d6d3d1"]`, putting ink `#1c1917` on paper `#34302c` — **1.34:1 contrast**, near-black text on dark grey, against a 4.5:1 AA requirement. A dark theme needs the *light* value as ink. Repalletted to `["#eab308", "#f5f5f4", "#1c1917", "#44403c"]` (15.9:1). Every other theme measured 10:1–17.7:1, so this was isolated to that one theme. Now pinned by two unit tests: an AA contrast floor across all themes, and a check that `dark` is set only when the paper really is dark.
-- [ ] **T-9.3.7** Surface the expanded themes in the dashboard editor with real previews, so owners can see a variation before applying it. The `?preview=1&theme=` override from T-9.3.8 is the mechanism.
+- [x] **T-9.3.7** **Visual theme picker in the Page Design tab.** Replaced the name-only dropdown with `theme-picker.tsx`: a 2-column grid where each option renders a miniature of its own storefront using that theme's real tokens — hero composition (centred vs left), heading font, corner radius and surface treatment. Selecting a theme also adopts that theme's accent, so the live preview does not keep the previous theme's colour on a new palette.
+  > **Verified with Playwright, not the browser pane.** The pane cannot composite dashboard routes — the tab button reported zero width/height and the tiles appeared absent. Playwright confirmed all 7 tiles render with real dimensions, the correct theme selected, and selection moving on click, with no page errors. See the [[headless-browser-suspense-hydration-artifact]] note.
 
 ### 9.4 Credibility pass
 
