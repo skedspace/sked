@@ -30,12 +30,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   PUBLIC_PAGE_THEMES,
+  // ThemePicker renders each option as a miniature of its own storefront.
   readPublicPageSections,
   type FaqItem,
   type PublicPageSections,
 } from "@/lib/public-page";
 import { ImageGalleryUpload, ImageUpload } from "@/components/ui/image-upload";
 import { PagePreview } from "./page-preview";
+import { ThemePicker } from "./theme-picker";
 
 type Page = {
   theme: string;
@@ -724,19 +726,15 @@ export function PageEditor({
                 </p>
               </div>
 
-              <FieldSelect
-                id="theme"
-                label="Theme"
+              <ThemePicker
                 value={theme}
-                onChange={(value) => {
-                  setTheme(value);
-                  const picked = THEMES.find((t) => t.id === value);
-                  if (picked) setPrimaryColor(picked.colors[0]!);
+                onChange={(themeId, themePrimary) => {
+                  setTheme(themeId);
+                  // Each theme carries its own accent; adopting it on switch
+                  // keeps the preview honest instead of leaving the previous
+                  // theme's colour on top of a new palette.
+                  setPrimaryColor(themePrimary);
                 }}
-                options={THEMES.map((option) => ({
-                  value: option.id,
-                  label: option.label,
-                }))}
               />
               <p className="text-xs font-medium text-[#646961]">
                 {activeTheme.description}
@@ -1553,39 +1551,3 @@ function FieldTextarea({
   );
 }
 
-function FieldSelect({
-  id,
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
-}) {
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={id} className="text-xs font-black">
-        {label}
-      </Label>
-      <label className="relative block">
-        <select
-          id={id}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-11 w-full appearance-none rounded-xl border border-black/[0.08] bg-[#fbfaf7] px-3.5 pr-10 text-sm font-bold outline-none focus-visible:ring-2 focus-visible:ring-[#81c81b]/40"
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-[#626860]" />
-      </label>
-    </div>
-  );
-}
