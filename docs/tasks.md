@@ -15,11 +15,11 @@ Phase 3: Payments        [██████████████████
 Phase 4: Harden & Ship   [████████████████████] 100%  (16/16)
 Phase 5: Landing Page    [███████████████████░]  95%  (20/21, 1 removed)
 Phase 6: Page Design     [████████████████████] 100%  (14/14)
-Phase 7: Launch & Beta   [▓▓▓▓▓▓▓▓░░░░░░░░░░░░]  40%  (10/25)
+Phase 7: Launch & Beta   [████████░░░░░░░░░░░░]  42%  (11/26)
 Phase 8: Polish & Infra  [████████████████████] 100%  (36/36)
-Phase 9: Page & Reviews  [██████████░░░░░░░░░░]  48%  (15/31)
+Phase 9: Page & Reviews  [██████████░░░░░░░░░░]  52%  (16/31)
 ═══════════════════════════════════════════════════════
-Overall:                 [█████████████████░░░]  86% (192/224)
+Overall:                 [█████████████████░░░]  86% (194/225)
 
 Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 ```
@@ -38,10 +38,10 @@ Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 | **4. Harden & Ship** | 16 | 16 | 0 | ✅ Done |
 | **5. Landing Page** | 21 | 20 | 0 | ✅ Done (1 removed) |
 | **6. Page Design** | 14 | 14 | 0 | ✅ Done |
-| **7. Launch & Beta** | 25 | 10 | 0 | 🟡 In progress |
+| **7. Launch & Beta** | 26 | 11 | 0 | 🟡 In progress |
 | **8. Polish & Infra** | 36 | 36 | 0 | ✅ Done |
-| **9. Page & Reviews** | 31 | 15 | 0 | 🟡 In progress |
-| **Total** | **224** | **192** | **1** | **🟡 Launch prep active** |
+| **9. Page & Reviews** | 31 | 16 | 0 | 🟡 In progress |
+| **Total** | **225** | **194** | **1** | **🟡 Launch prep active** |
 
 Phase 8 ran **in parallel** with Phase 7 — it captures the dashboard, media, and
 infrastructure work done between 2026-07-29 and 2026-08-02 while the launch gates
@@ -873,7 +873,20 @@ quietly reintroduce them.
   - The logo gained a real `alt` (`"<brand> logo"`); decorative images keep `alt=""` deliberately.
   - **`next.config.ts`:** added a development-only `remotePattern` for `http://localhost:54321`. Local Supabase serves storage over that origin, and without it `next/image` rejects every uploaded court photo and logo in dev with "hostname is not configured". Production URLs remain `*.supabase.co`.
   - Verified end to end: page returns 200, 36 `/_next/image` references, `data-nimg="fill"` with correct absolute positioning, `srcSet` at 640/750/828w, the optimizer endpoint serves bytes (HTTP 200), browser network shows 200s, and the console is clean.
-- [ ] **T-9.6.2** 375px audit — tap targets ≥ 44px, no horizontal overflow, booking panel usable one-handed.
+- [x] **T-9.6.2** **375px audit — clean across the whole booking flow.** Audited with Playwright at 375×812 (mobile emulation, touch, DPR 2), measuring computed geometry rather than eyeballing: horizontal overflow, tap targets under 44px, and body text under 12px.
+
+  Baseline was already good — **no horizontal scroll, zero overflowing elements, no text under 12px** at any step. Four tap targets were undersized, all fixed:
+
+  | Control | Was | Where |
+  |---|---|---|
+  | Time-slot buttons | 76×34 | Booking step 2 — the most-tapped control in the flow |
+  | "Change" (slot) | 45×16 | Customer details step |
+  | "▸ Discount code" toggle | 96×16 | Customer details step |
+  | "Powered by SKED" | 120×20 | Storefront footer |
+
+  Each fix uses `inline-flex` + `min-h-11` so the target grows without moving the text; "Change" additionally uses `-my-3` so the summary row does not get taller.
+
+  The audit deliberately drives the form rather than testing the landing state only — three of the four faults appear **after** interaction (select date → find courts → pick slot → continue) and a static page check would have missed them. Re-verified: all four steps report 0 overflow and 0 undersized targets, with 3 form fields reachable and no page errors.
 - [ ] **T-9.6.3** Re-run the Lighthouse mobile budget once the redesign settles, so it does not regress the ≥ 90 target from T-2.2.7.
 
 ---
