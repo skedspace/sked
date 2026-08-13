@@ -17,9 +17,9 @@ Phase 5: Landing Page    [██████████████████
 Phase 6: Page Design     [████████████████████] 100%  (14/14)
 Phase 7: Launch & Beta   [▓▓▓▓▓▓▓▓░░░░░░░░░░░░]  42%  (10/24)
 Phase 8: Polish & Infra  [████████████████████] 100%  (36/36)
-Phase 9: Page & Reviews  [█████████░░░░░░░░░░░]  45%  (14/31)
+Phase 9: Page & Reviews  [██████████░░░░░░░░░░]  48%  (15/31)
 ═══════════════════════════════════════════════════════
-Overall:                 [█████████████████░░░]  86% (191/223)
+Overall:                 [█████████████████░░░]  86% (192/223)
 
 Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 ```
@@ -40,8 +40,8 @@ Legend: ██ = completed, ▓▓ = in progress, ░░ = not started
 | **6. Page Design** | 14 | 14 | 0 | ✅ Done |
 | **7. Launch & Beta** | 24 | 10 | 0 | 🟡 In progress |
 | **8. Polish & Infra** | 36 | 36 | 0 | ✅ Done |
-| **9. Page & Reviews** | 31 | 14 | 1 | 🟡 In progress |
-| **Total** | **223** | **191** | **1** | **🟡 Launch prep active** |
+| **9. Page & Reviews** | 31 | 15 | 0 | 🟡 In progress |
+| **Total** | **223** | **192** | **1** | **🟡 Launch prep active** |
 
 Phase 8 ran **in parallel** with Phase 7 — it captures the dashboard, media, and
 infrastructure work done between 2026-07-29 and 2026-08-02 while the launch gates
@@ -514,7 +514,15 @@ These have been implemented ahead of schedule.
 
 **Remaining lint warnings (non-blocking, deferred):**
 
-- [ ] **T-7.2.5** Replace `<img>` with `next/image` on the public page and landing components (~13 `@next/next/no-img-element` warnings) — touches LCP, so pair with the Lighthouse budget in T-4.2.4
+- [~] **T-7.2.5** Replace `<img>` with `next/image` on the public page and landing components — **public page done in T-9.6.1; 14 warnings remain elsewhere.** Not closed, contrary to the earlier note on T-9.6.1: the count rose rather than fell to zero because work landed since this was written added more `<img>` tags. Remaining, by file:
+  | Count | File |
+  |---|---|
+  | 5 | `dashboard/settings/page/page-preview.tsx` |
+  | 2 | `components/ui/accordion-feature-section.tsx` |
+  | 2 | `dashboard/courts/courts-view.tsx` |
+  | 1 each | `settings-view.tsx`, `testimonials-columns-1.tsx`, `booking-form.tsx`, `board-sponsor-bar.tsx`, `sponsor-marquee.tsx` |
+
+  Only `accordion-feature-section` and `testimonials-columns-1` are on the public marketing path and affect LCP. The dashboard ones (`page-preview`, `courts-view`, `settings-view`) are behind auth and matter far less — `page-preview` in particular renders many small thumbnails where the optimizer may not pay for itself.
 - [ ] **T-7.2.6** Type the remaining `any` escapes (~120 warnings, concentrated in `supabase/server.ts`, `supabase/client.ts`, `posthog-provider`, `session-control`)
 - [ ] **T-7.2.7** Decide the fate of the dead `SkedLockup` / `WaveDecor` components in `board-sponsor-bar.tsx` — remove or re-wire (left in place deliberately; they're finished design assets)
 - [ ] **T-7.2.8** `src/lib/supabase/rls.test.ts` has unused scaffolding (`beforeAll`, `ANON_KEY`, `authedClient`) — resolve as part of T-7.2.3 rather than deleting it blind
@@ -830,7 +838,13 @@ quietly reintroduce them.
 [ ] [░░░░░░░░░░░░░░░░░░░░]   0%  (0/3)
 ```
 
-- [ ] **T-9.6.1** Convert the 6 remaining `<img>` tags to `next/image` (also closes T-7.2.5).
+- [x] **T-9.6.1** **Public page converted to `next/image`.** All 6 `<img>` tags in `p/[slug]/page.tsx` replaced; that file is now at **zero** lint warnings. Project-wide warnings 153 → 144.
+  - Hero cover uses `fill` + `priority` + `sizes="100vw"` — it is the LCP element, so it skips lazy-loading and gets a `<link rel="preload" as="image">`. Verified present in the served HTML.
+  - Gallery tiles and the decorative band use `fill` with responsive `sizes`; all four `fill` images were checked to sit inside a `relative` parent, which `fill` requires.
+  - The CTA image sits in a grid cell with no positioned ancestor, so it is sized intrinsically (`width`/`height`) rather than with `fill`.
+  - The logo gained a real `alt` (`"<brand> logo"`); decorative images keep `alt=""` deliberately.
+  - **`next.config.ts`:** added a development-only `remotePattern` for `http://localhost:54321`. Local Supabase serves storage over that origin, and without it `next/image` rejects every uploaded court photo and logo in dev with "hostname is not configured". Production URLs remain `*.supabase.co`.
+  - Verified end to end: page returns 200, 36 `/_next/image` references, `data-nimg="fill"` with correct absolute positioning, `srcSet` at 640/750/828w, the optimizer endpoint serves bytes (HTTP 200), browser network shows 200s, and the console is clean.
 - [ ] **T-9.6.2** 375px audit — tap targets ≥ 44px, no horizontal overflow, booking panel usable one-handed.
 - [ ] **T-9.6.3** Re-run the Lighthouse mobile budget once the redesign settles, so it does not regress the ≥ 90 target from T-2.2.7.
 
