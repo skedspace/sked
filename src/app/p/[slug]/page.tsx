@@ -732,7 +732,10 @@ export default async function PublicPage({ params, searchParams }: Props) {
                   href="https://sked.space"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-bold text-[#071420] hover:underline"
+                  // inline-flex + min-height gives this a 44px touch target
+                  // without changing where the text sits; as a bare inline link
+                  // it was 20px tall, the only sub-44px target on the page.
+                  className="inline-flex min-h-11 items-center font-bold text-[#071420] hover:underline"
                   style={{ color: pageTheme.ink }}
                 >
                   Powered by SKED

@@ -234,7 +234,10 @@ export function BookingForm({
                           setSelectedSlot(slot);
                           analytics.trackSlotSelected(service.name);
                         }}
-                        className={`rounded-lg border px-3 py-2 text-xs font-bold transition-all ${
+                        // min-h-11/min-w-11 keeps every slot at a 44px touch
+                        // target. These are the most-tapped control in the
+                        // booking flow and were 76x34 on a 375px viewport.
+                        className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border px-3 py-2 text-xs font-bold transition-all ${
                           selectedSlot?.start_time === slot.start_time &&
                           selectedSlot?.resource_id === slot.resource_id
                             ? "text-white"
@@ -303,7 +306,9 @@ export function BookingForm({
               <button
                 type="button"
                 onClick={() => { setStep("pick-slot"); setSelectedSlot(null); }}
-                className="ml-auto text-[#8c9185] hover:text-[#171a16] text-xs"
+                // min-h-11 plus negative margin: a 44px touch target that does
+                // not push the summary row taller. Was 45x16.
+                className="-my-3 ml-auto inline-flex min-h-11 items-center px-1 text-xs text-[#8c9185] hover:text-[#171a16]"
               >
                 Change
               </button>
@@ -401,7 +406,8 @@ export function BookingForm({
               <button
                 type="button"
                 onClick={() => setShowDiscount(!showDiscount)}
-                className="text-xs font-medium text-[#8c9185] hover:text-[#57940e]"
+                // Disclosure toggle was 96x16; min-h-11 makes it thumb-sized.
+                className="inline-flex min-h-11 items-center text-xs font-medium text-[#8c9185] hover:text-[#57940e]"
                 onMouseEnter={(e) => (e.currentTarget.style.color = primaryColor)}
                 onMouseLeave={(e) => (e.currentTarget.style.color = "")}
               >
