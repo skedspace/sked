@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
+import Image from "next/image";
 import {
   CalendarDays,
   Car,
@@ -284,10 +285,15 @@ export default async function PublicPage({ params, searchParams }: Props) {
         style={{ backgroundColor: pageTheme.ink }}
       >
         {hero.enabled && (
-          <img
+          // The hero cover is the LCP element on this page, so it is marked
+          // priority to skip lazy-loading and preloaded at full viewport width.
+          <Image
             src={coverUrl}
             alt=""
-            className="absolute inset-0 -z-20 h-full w-full object-cover"
+            fill
+            priority
+            sizes="100vw"
+            className="-z-20 object-cover"
           />
         )}
         <div className={heroScrimClass} />
@@ -299,9 +305,11 @@ export default async function PublicPage({ params, searchParams }: Props) {
               }`}
             >
               {logoUrl ? (
-                <img
+                <Image
                   src={logoUrl}
-                  alt=""
+                  alt={`${displayName} logo`}
+                  width={56}
+                  height={56}
                   className="h-14 w-14 rounded-full border border-white/20 object-cover"
                 />
               ) : (
@@ -473,10 +481,12 @@ export default async function PublicPage({ params, searchParams }: Props) {
                   className="group relative min-h-80 overflow-hidden rounded-[var(--sked-control-radius)] bg-[#071420] shadow-[0_18px_36px_rgba(7,20,32,0.16)]"
                   style={{ backgroundColor: pageTheme.ink }}
                 >
-                  <img
+                  <Image
                     src={photo}
                     alt=""
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#03101b] via-[#03101b]/20 to-transparent" />
                 </article>
@@ -550,10 +560,12 @@ export default async function PublicPage({ params, searchParams }: Props) {
             </div>
           </div>
           <div className="relative min-h-72">
-            <img
+            <Image
               src="/images/newbg.webp"
               alt=""
-              className="absolute inset-0 h-full w-full object-cover"
+              fill
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              className="object-cover"
             />
             <div
               className="absolute inset-0 bg-gradient-to-r from-[#071420] via-[#071420]/40 to-transparent lg:bg-gradient-to-l"
@@ -581,10 +593,12 @@ export default async function PublicPage({ params, searchParams }: Props) {
                   className="group relative min-h-64 overflow-hidden rounded-[var(--sked-control-radius)]"
                   style={{ backgroundColor: pageTheme.ink }}
                 >
-                  <img
+                  <Image
                     src={photo}
                     alt=""
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
               ))}
@@ -655,9 +669,15 @@ export default async function PublicPage({ params, searchParams }: Props) {
           className="grid items-center gap-6 overflow-hidden rounded-[var(--sked-card-radius)] p-6 text-white md:grid-cols-[220px_1fr_auto] md:p-8"
           style={{ backgroundColor: pageTheme.ink }}
         >
-          <img
+          {/* Sits in a grid cell with no positioned ancestor, so this one is
+              sized intrinsically rather than with `fill`; the CSS classes still
+              govern the rendered box. */}
+          <Image
             src="/images/newbg.webp"
             alt=""
+            width={440}
+            height={256}
+            sizes="(max-width: 768px) 100vw, 220px"
             className="h-32 w-full rounded-[var(--sked-control-radius)] object-cover md:h-24"
           />
           <div>
